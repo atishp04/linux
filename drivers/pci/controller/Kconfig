@@ -106,6 +106,13 @@ config PCIE_XILINX_CPM
 	help
 	  Say 'Y' here if you want kernel support for the
 	  Xilinx Versal CPM host bridge.
+config PCIE_XDMA_PL
+       bool "Xilinx XDMA PL PCIe host bridge support"
+       depends on OF
+       depends on PCI_MSI_IRQ_DOMAIN
+       help
+         Say 'Y' here if you want kernel to enable support the
+         Xilinx XDMA PL PCIe Host Bridge driver.
 
 config PCI_XGENE
 	bool "X-Gene PCIe controller"
