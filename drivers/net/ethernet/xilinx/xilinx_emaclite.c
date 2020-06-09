@@ -38,7 +38,7 @@
 #define XEL_TPLR_OFFSET		0x07F4		/* Tx packet length */
 
 #define XEL_RXBUFF_OFFSET	0x1000		/* Receive Buffer */
-#define XEL_RPLR_OFFSET		0x100C		/* Rx packet length */
+#define XEL_RPLR_OFFSET		0x17F4		/* Rx packet length */
 #define XEL_RSR_OFFSET		0x17FC		/* Rx status */
 
 #define XEL_BUFFER_OFFSET	0x0800		/* Next Tx/Rx buffer's offset */
@@ -412,36 +412,41 @@ static u16 xemaclite_recv_data(struct net_local *drvdata, u8 *data, int maxlen)
 			return 0;	/* No data was available */
 	}
 
-	/* Get the protocol type of the ethernet frame that arrived
-	 */
-	proto_type = ((ntohl(xemaclite_readl(addr + XEL_HEADER_OFFSET +
-			XEL_RXBUFF_OFFSET)) >> XEL_HEADER_SHIFT) &
-			XEL_RPLR_LENGTH_MASK);
+	/* Check if length is available from hardware */
+	length = (xemaclite_readl(addr + XEL_RPLR_OFFSET) & XEL_RPLR_LENGTH_MASK) + ETH_FCS_LEN;
 
-	/* Check if received ethernet frame is a raw ethernet frame
-	 * or an IP packet or an ARP packet
-	 */
-	if (proto_type > ETH_DATA_LEN) {
+	if (length == 0) {
+		/* Get the protocol type of the ethernet frame that arrived
+		 */
+		proto_type = ((ntohl(xemaclite_readl(addr + XEL_HEADER_OFFSET +
+				XEL_RXBUFF_OFFSET)) >> XEL_HEADER_SHIFT) &
+				XEL_RPLR_LENGTH_MASK);
 
-		if (proto_type == ETH_P_IP) {
-			length = ((ntohl(xemaclite_readl(addr +
-					XEL_HEADER_IP_LENGTH_OFFSET +
-					XEL_RXBUFF_OFFSET)) >>
-					XEL_HEADER_SHIFT) &
-					XEL_RPLR_LENGTH_MASK);
-			length = min_t(u16, length, ETH_DATA_LEN);
-			length += ETH_HLEN + ETH_FCS_LEN;
+		/* Check if received ethernet frame is a raw ethernet frame
+		 * or an IP packet or an ARP packet
+		 */
+		if (proto_type > ETH_DATA_LEN) {
 
-		} else if (proto_type == ETH_P_ARP)
-			length = XEL_ARP_PACKET_SIZE + ETH_HLEN + ETH_FCS_LEN;
-		else
-			/* Field contains type other than IP or ARP, use max
-			 * frame size and let user parse it
-			 */
-			length = ETH_FRAME_LEN + ETH_FCS_LEN;
-	} else
-		/* Use the length in the frame, plus the header and trailer */
-		length = proto_type + ETH_HLEN + ETH_FCS_LEN;
+			if (proto_type == ETH_P_IP) {
+				length = ((ntohl(xemaclite_readl(addr +
+						XEL_HEADER_IP_LENGTH_OFFSET +
+						XEL_RXBUFF_OFFSET)) >>
+						XEL_HEADER_SHIFT) &
+						XEL_RPLR_LENGTH_MASK);
+				length = min_t(u16, length, ETH_DATA_LEN);
+				length += ETH_HLEN + ETH_FCS_LEN;
+
+			} else if (proto_type == ETH_P_ARP)
+				length = XEL_ARP_PACKET_SIZE + ETH_HLEN + ETH_FCS_LEN;
+			else
+				/* Field contains type other than IP or ARP, use max
+				 * frame size and let user parse it
+				 */
+				length = ETH_FRAME_LEN + ETH_FCS_LEN;
+		} else
+			/* Use the length in the frame, plus the header and trailer */
+			length = proto_type + ETH_HLEN + ETH_FCS_LEN;
+	}
 
 	if (WARN_ON(length > maxlen))
 		length = maxlen;
