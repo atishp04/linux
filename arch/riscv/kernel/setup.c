@@ -79,6 +79,8 @@ void __init setup_arch(char **cmdline_p)
 #else
 	unflatten_device_tree();
 #endif
+	misc_mem_init();
+
 	clint_init_boot_cpu();
 
 #ifdef CONFIG_SWIOTLB
