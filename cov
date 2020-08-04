@@ -1,0 +1,52 @@
+This series attempts to move the ARM64 numa implementation to common
+code so that RISC-V can leverage that as well instead of reimplementing
+it again.
+
+RISC-V specific bits are based on initial work done by Greentime Hu [1] but
+modified to reuse the common implementation to avoid duplication.
+
+[1] https://lkml.org/lkml/2020/1/10/233
+
+This series has been tested on qemu with numa enabled for both RISC-V & ARM64.
+It would be great if somebody can test it on numa capable ARM64 hardware platforms.
+This patch series doesn't modify the maintainers list for the common code (arch_numa)
+as I am not sure if somebody from ARM64 community or Greg should take up the
+maintainership. Ganapatrao was the original author of the arm64 version.
+I would be happy to update that in the next revision once it is decided.
+
+# numactl --hardware
+available: 2 nodes (0-1)
+node 0 cpus: 0 1 2 3
+node 0 size: 486 MB
+node 0 free: 470 MB
+node 1 cpus: 4 5 6 7
+node 1 size: 424 MB
+node 1 free: 408 MB
+node distances:
+node   0   1 
+  0:  10  20 
+  1:  20  10 
+# numactl -show
+policy: default
+preferred node: current
+physcpubind: 0 1 2 3 4 5 6 7 
+cpubind: 0 1 
+nodebind: 0 1 
+membind: 0 1 
+
+For RISC-V, the following qemu series is a pre-requisite to test the patches in Qemu.
+
+https://patchwork.kernel.org/project/qemu-devel/list/?series=303313
+
+The patches are also available at
+
+https://github.com/atishp04/linux/tree/5.10_numa_unified
+
+There may be some minor conflicts with Mike's cleanup series [2] depending on the
+order in which these two series are being accepted. I can rebase on top his series
+if required.
+
+[2] https://lkml.org/lkml/2020/7/28/39
+
+option-subject Unify NUMA implementation between ARM64 & RISC-V
+option-prefix RFC/RFT PATCH
