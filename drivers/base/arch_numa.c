@@ -13,7 +13,9 @@
 #include <linux/module.h>
 #include <linux/of.h>
 
+#ifdef CONFIG_ARM64
 #include <asm/acpi.h>
+#endif
 #include <asm/sections.h>
 
 struct pglist_data *node_data[MAX_NUMNODES] __read_mostly;
@@ -445,16 +447,18 @@ static int __init dummy_numa_init(void)
 }
 
 /**
- * arm64_numa_init() - Initialize NUMA
+ * arch_numa_init() - Initialize NUMA
  *
  * Try each configured NUMA initialization method until one succeeds. The
  * last fallback is dummy single node config encomapssing whole memory.
  */
-void __init arm64_numa_init(void)
+void __init arch_numa_init(void)
 {
 	if (!numa_off) {
+#ifdef CONFIG_ARM64
 		if (!acpi_disabled && !numa_init(arm64_acpi_numa_init))
 			return;
+#endif
 		if (acpi_disabled && !numa_init(of_numa_init))
 			return;
 	}
