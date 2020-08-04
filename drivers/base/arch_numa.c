@@ -11,6 +11,7 @@
 #include <linux/acpi.h>
 #include <linux/memblock.h>
 #include <linux/module.h>
+#include <linux/pci.h>
 #include <linux/of.h>
 
 #ifdef CONFIG_ARM64
@@ -57,6 +58,16 @@ const struct cpumask *cpumask_of_node(int node)
 	return node_to_cpumask_map[node];
 }
 EXPORT_SYMBOL(cpumask_of_node);
+
+#endif
+
+#ifdef CONFIG_PCI
+
+int pcibus_to_node(struct pci_bus *bus)
+{
+	return dev_to_node(&bus->dev);
+}
+EXPORT_SYMBOL(pcibus_to_node);
 
 #endif
 

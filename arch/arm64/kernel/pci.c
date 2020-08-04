@@ -54,16 +54,6 @@ int raw_pci_write(unsigned int domain, unsigned int bus,
 	return b->ops->write(b, devfn, reg, len, val);
 }
 
-#ifdef CONFIG_NUMA
-
-int pcibus_to_node(struct pci_bus *bus)
-{
-	return dev_to_node(&bus->dev);
-}
-EXPORT_SYMBOL(pcibus_to_node);
-
-#endif
-
 #ifdef CONFIG_ACPI
 
 struct acpi_pci_generic_root_info {
