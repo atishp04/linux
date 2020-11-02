@@ -676,11 +676,13 @@ static void sifive_serial_set_termios(struct uart_port *port,
 		dev_err_once(ssp->port.dev, "BREAK detection not supported\n");
 
 	/* Set number of stop bits */
-	nstop = (termios->c_cflag & CSTOPB) ? 2 : 1;
+	//nstop = (termios->c_cflag & CSTOPB) ? 2 : 1;
+	nstop = 2;
 	__ssp_set_stop_bits(ssp, nstop);
 
 	/* Set line rate */
-	rate = uart_get_baud_rate(port, termios, old, 0, ssp->clkin_rate / 16);
+	//rate = uart_get_baud_rate(port, termios, old, 0, ssp->clkin_rate / 16);
+	rate = 3686400;
 	__ssp_update_baud_rate(ssp, rate);
 
 	spin_lock_irqsave(&ssp->port.lock, flags);
