@@ -587,7 +587,7 @@ static struct riscv_ipi_ops sbi_ipi_ops = {
 	.ipi_inject = sbi_send_cpumask_ipi
 };
 
-int __init sbi_init(void)
+void __init sbi_init(void)
 {
 	int ret;
 
@@ -634,6 +634,4 @@ int __init sbi_init(void)
 	}
 
 	riscv_set_ipi_ops(&sbi_ipi_ops);
-
-	return 0;
 }
