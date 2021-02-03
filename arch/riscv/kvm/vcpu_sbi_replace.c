@@ -134,3 +134,47 @@ const struct kvm_vcpu_sbi_extension vcpu_sbi_ext_rfence = {
 	.extid_end = SBI_EXT_RFENCE,
 	.handler = kvm_sbi_ext_rfence_handler,
 };
+
+static int kvm_sbi_ext_srst_handler(struct kvm_vcpu *vcpu, struct kvm_run *run,
+				      unsigned long *out_val,
+				      struct kvm_cpu_trap *utrap, bool *exit)
+{
+	int ret = 0;
+	struct kvm_cpu_context *cp = &vcpu->arch.guest_context;
+	unsigned long reset_type = cp->a0;
+	unsigned long reset_reason = cp->a1;
+	unsigned long funcid = cp->a6;
+
+	if (!cp)
+		return -EINVAL;
+
+	if ((((u32)-1U) <= ((u64)reset_type)) ||
+	    (((u32)-1U) <= ((u64)reset_reason)))
+		return -EINVAL;
+
+	if ((funcid != SBI_EXT_SRST_RESET) ||
+	    (reset_reason > SBI_SRST_RESET_REASON_SYS_FAILURE))
+		ret = -EOPNOTSUPP;
+
+	switch (reset_type) {
+	case SBI_SRST_RESET_TYPE_SHUTDOWN:
+		kvm_sbi_system_event(vcpu, run, KVM_SYSTEM_EVENT_SHUTDOWN);
+		*exit = true;
+		break;
+	case SBI_SRST_RESET_TYPE_COLD_REBOOT:
+	case SBI_SRST_RESET_TYPE_WARM_REBOOT:
+		kvm_sbi_system_event(vcpu, run, KVM_SYSTEM_EVENT_RESET);
+		*exit = true;
+		break;
+	default:
+		ret = -EOPNOTSUPP;
+	};
+
+	return ret;
+}
+
+const struct kvm_vcpu_sbi_extension vcpu_sbi_ext_srst = {
+	.extid_start = SBI_EXT_SRST,
+	.extid_end = SBI_EXT_SRST,
+	.handler = kvm_sbi_ext_srst_handler,
+};
