@@ -149,7 +149,7 @@ config PAGE_OFFSET
 	hex
 	default 0xC0000000 if 32BIT
 	default 0x80000000 if 64BIT && !MMU
-	default 0xffffffe000000000 if 64BIT
+	default 0xffffc00000000000 if 64BIT
 
 config ARCH_FLATMEM_ENABLE
 	def_bool !NUMA
@@ -197,7 +197,7 @@ config FIX_EARLYCON_MEM
 
 config PGTABLE_LEVELS
 	int
-	default 3 if 64BIT
+	default 4 if 64BIT
 	default 2
 
 config LOCKDEP_SUPPORT

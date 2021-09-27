@@ -31,7 +31,16 @@
  * When not using MMU this corresponds to the first free page in
  * physical memory (aligned on a page boundary).
  */
+#ifdef CONFIG_64BIT
+#define PAGE_OFFSET		kernel_map.page_offset
+/*
+ * By default, CONFIG_PAGE_OFFSET value corresponds to SV48 address space so
+ * define the PAGE_OFFSET value for SV39.
+ */
+#define PAGE_OFFSET_L3		_AC(0xffffffe000000000, UL)
+#else
 #define PAGE_OFFSET		_AC(CONFIG_PAGE_OFFSET, UL)
+#endif /* CONFIG_64BIT */
 
 #define KERN_VIRT_SIZE (-PAGE_OFFSET)
 
@@ -86,6 +95,7 @@ extern unsigned long riscv_pfn_base;
 #endif /* CONFIG_MMU */
 
 struct kernel_mapping {
+	unsigned long page_offset;
 	unsigned long virt_addr;
 	uintptr_t phys_addr;
 	uintptr_t size;
