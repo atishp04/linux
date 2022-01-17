@@ -55,6 +55,6 @@ void __init sbi_ipi_init(void)
 		return;
 	}
 
-	riscv_ipi_set_virq_range(virq, IPI_MUX_NR_IRQS);
+	riscv_ipi_set_virq_range(virq, IPI_MUX_NR_IRQS, false);
 	pr_info("providing IPIs using SBI IPI extension\n");
 }

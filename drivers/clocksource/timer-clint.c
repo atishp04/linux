@@ -245,7 +245,7 @@ static int __init clint_timer_init_dt(struct device_node *np)
 		goto fail_remove_cpuhp;
 	}
 
-	riscv_ipi_set_virq_range(virq, IPI_MUX_NR_IRQS);
+	riscv_ipi_set_virq_range(virq, IPI_MUX_NR_IRQS, true);
 	clint_clear_ipi(clint_ipi_irq);
 
 	return 0;
