@@ -23,6 +23,8 @@
 #define NUM_ALPHA_EXTS ('z' - 'a' + 1)
 
 unsigned long elf_hwcap __read_mostly;
+bool riscv_aia_available __read_mostly;
+EXPORT_SYMBOL_GPL(riscv_aia_available);
 
 /* Host ISA bitmap */
 static DECLARE_BITMAP(riscv_isa, RISCV_ISA_EXT_MAX) __read_mostly;
@@ -70,7 +72,7 @@ EXPORT_SYMBOL_GPL(__riscv_isa_extension_available);
 
 void __init riscv_fill_hwcap(void)
 {
-	struct device_node *node;
+	struct device_node *intc, *node;
 	const char *isa;
 	char print_str[NUM_ALPHA_EXTS + 1];
 	int i, j;
@@ -84,6 +86,7 @@ void __init riscv_fill_hwcap(void)
 	isa2hwcap['c'] = isa2hwcap['C'] = COMPAT_HWCAP_ISA_C;
 
 	elf_hwcap = 0;
+	riscv_aia_available = true;
 
 	bitmap_zero(riscv_isa, RISCV_ISA_EXT_MAX);
 
@@ -91,6 +94,13 @@ void __init riscv_fill_hwcap(void)
 		unsigned long this_hwcap = 0;
 		DECLARE_BITMAP(this_isa, RISCV_ISA_EXT_MAX);
 		const char *temp;
+
+		intc = of_find_compatible_node(node, NULL,
+						"riscv,cpu-intc-aia");
+		if (!intc)
+			riscv_aia_available = false;
+		else
+			of_node_put(intc);
 
 		if (riscv_of_processor_hartid(node) < 0)
 			continue;

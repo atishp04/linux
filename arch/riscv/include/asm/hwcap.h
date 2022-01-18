@@ -71,6 +71,9 @@ bool __riscv_isa_extension_available(const unsigned long *isa_bitmap, int bit);
 #define riscv_isa_extension_available(isa_bitmap, ext)	\
 	__riscv_isa_extension_available(isa_bitmap, RISCV_ISA_EXT_##ext)
 
+/* Feature flag representing AIA support on all CPUs */
+extern bool riscv_aia_available;
+
 #endif
 
 #endif /* _ASM_RISCV_HWCAP_H */
