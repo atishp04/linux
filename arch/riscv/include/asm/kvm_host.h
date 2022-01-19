@@ -220,6 +220,11 @@ void __kvm_riscv_hfence_gvma_vmid(unsigned long vmid);
 void __kvm_riscv_hfence_gvma_gpa(unsigned long gpa_divby_4);
 void __kvm_riscv_hfence_gvma_all(void);
 
+int kvm_riscv_stage2_ioremap(struct kvm *kvm, gpa_t gpa,
+			     phys_addr_t hpa, unsigned long size,
+			     bool writable, bool in_atomic);
+void kvm_riscv_stage2_iounmap(struct kvm *kvm, gpa_t gpa,
+			      unsigned long size);
 int kvm_riscv_stage2_map(struct kvm_vcpu *vcpu,
 			 struct kvm_memory_slot *memslot,
 			 gpa_t gpa, unsigned long hva, bool is_write);

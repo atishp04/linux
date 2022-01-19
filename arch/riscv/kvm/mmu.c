@@ -340,8 +340,9 @@ static void stage2_wp_memory_region(struct kvm *kvm, int slot)
 	kvm_flush_remote_tlbs(kvm);
 }
 
-static int stage2_ioremap(struct kvm *kvm, gpa_t gpa, phys_addr_t hpa,
-			  unsigned long size, bool writable)
+int kvm_riscv_stage2_ioremap(struct kvm *kvm, gpa_t gpa,
+			     phys_addr_t hpa, unsigned long size,
+			     bool writable, bool in_atomic)
 {
 	pte_t pte;
 	int ret = 0;
@@ -350,6 +351,7 @@ static int stage2_ioremap(struct kvm *kvm, gpa_t gpa, phys_addr_t hpa,
 	struct kvm_mmu_memory_cache pcache;
 
 	memset(&pcache, 0, sizeof(pcache));
+	pcache.gfp_atomic = GFP_ATOMIC | __GFP_ACCOUNT;
 	pcache.gfp_zero = __GFP_ZERO;
 
 	end = (gpa + size + PAGE_SIZE - 1) & PAGE_MASK;
@@ -377,6 +379,13 @@ static int stage2_ioremap(struct kvm *kvm, gpa_t gpa, phys_addr_t hpa,
 out:
 	kvm_mmu_free_memory_cache(&pcache);
 	return ret;
+}
+
+void kvm_riscv_stage2_iounmap(struct kvm *kvm, gpa_t gpa, unsigned long size)
+{
+	spin_lock(&kvm->mmu_lock);
+	stage2_unmap_range(kvm, gpa, size, false);
+	spin_unlock(&kvm->mmu_lock);
 }
 
 void kvm_arch_mmu_enable_log_dirty_pt_masked(struct kvm *kvm,
@@ -514,8 +523,9 @@ int kvm_arch_prepare_memory_region(struct kvm *kvm,
 				goto out;
 			}
 
-			ret = stage2_ioremap(kvm, gpa, pa,
-					     vm_end - vm_start, writable);
+			ret = kvm_riscv_stage2_ioremap(kvm, gpa, pa,
+						       vm_end - vm_start,
+						       writable, false);
 			if (ret)
 				break;
 		}
