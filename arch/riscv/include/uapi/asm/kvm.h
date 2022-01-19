@@ -63,6 +63,7 @@ struct kvm_riscv_core {
 
 /* CSR registers for KVM_GET_ONE_REG and KVM_SET_ONE_REG */
 struct kvm_riscv_csr {
+	/* General CSRs */
 	unsigned long sstatus;
 	unsigned long sie;
 	unsigned long stvec;
@@ -73,6 +74,14 @@ struct kvm_riscv_csr {
 	unsigned long sip;
 	unsigned long satp;
 	unsigned long scounteren;
+	/* AIA CSRs */
+	unsigned long siselect;
+	unsigned long siprio1;
+	unsigned long siprio2;
+	unsigned long sieh;
+	unsigned long siph;
+	unsigned long siprio1h;
+	unsigned long siprio2h;
 };
 
 /* TIMER registers for KVM_GET_ONE_REG and KVM_SET_ONE_REG */
@@ -110,8 +119,8 @@ struct kvm_riscv_timer {
 		(offsetof(struct kvm_riscv_csr, name) / sizeof(unsigned long))
 #define KVM_REG_RISCV_CSR_GENERAL_FIRST	0
 #define KVM_REG_RISCV_CSR_GENERAL_LAST	KVM_REG_RISCV_CSR_REG(scounteren)
-#define KVM_REG_RISCV_CSR_AIA_FIRST	(KVM_REG_RISCV_CSR_GENERAL_LAST + 1)
-#define KVM_REG_RISCV_CSR_AIA_LAST	KVM_REG_RISCV_CSR_AIA_FIRST
+#define KVM_REG_RISCV_CSR_AIA_FIRST	KVM_REG_RISCV_CSR_REG(siselect)
+#define KVM_REG_RISCV_CSR_AIA_LAST	KVM_REG_RISCV_CSR_REG(siprio2h)
 
 /* Timer registers are mapped as type 4 */
 #define KVM_REG_RISCV_TIMER		(0x04 << KVM_REG_RISCV_TYPE_SHIFT)

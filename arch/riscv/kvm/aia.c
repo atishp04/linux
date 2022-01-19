@@ -63,6 +63,373 @@ static inline void aia_set_hvictl(bool ext_irq_pending)
 	csr_write(CSR_HVICTL, hvictl);
 }
 
+#ifndef CONFIG_64BIT
+void kvm_riscv_vcpu_aia_flush_interrupts(struct kvm_vcpu *vcpu)
+{
+	struct kvm_vcpu_csr *csr = &vcpu->arch.guest_csr;
+	unsigned long mask, val;
+
+	if (!kvm_riscv_aia_available())
+		return;
+
+	if (READ_ONCE(vcpu->arch.irqs_pending_mask[1])) {
+		mask = xchg_acquire(&vcpu->arch.irqs_pending_mask[1], 0);
+		val = READ_ONCE(vcpu->arch.irqs_pending[1]) & mask;
+
+		csr->hviph &= ~mask;
+		csr->hviph |= val;
+	}
+}
+
+void kvm_riscv_vcpu_aia_sync_interrupts(struct kvm_vcpu *vcpu)
+{
+	struct kvm_vcpu_csr *csr = &vcpu->arch.guest_csr;
+
+	if (kvm_riscv_aia_available())
+		csr->vsieh = csr_read(CSR_VSIEH);
+}
+#endif
+
+bool kvm_riscv_vcpu_aia_has_interrupts(struct kvm_vcpu *vcpu, u64 mask)
+{
+	int hgei;
+	unsigned long seip;
+
+	if (!kvm_riscv_aia_available())
+		return false;
+
+#ifndef CONFIG_64BIT
+	if (READ_ONCE(vcpu->arch.irqs_pending[1]) &
+	    (vcpu->arch.guest_csr.vsieh & (unsigned long)(mask >> 32)))
+		return true;
+#endif
+
+	seip = vcpu->arch.guest_csr.vsie;
+	seip &= (unsigned long)mask;
+	seip &= BIT(IRQ_S_EXT);
+	if (!kvm_riscv_aia_initialized(vcpu->kvm) || !seip)
+		return false;
+
+	hgei = aia_find_hgei(vcpu);
+	if (hgei > 0)
+		return (csr_read(CSR_HGEIP) & BIT(hgei)) ? true : false;
+
+	return false;
+}
+
+void kvm_riscv_vcpu_aia_update_hvip(struct kvm_vcpu *vcpu)
+{
+	struct kvm_vcpu_csr *csr = &vcpu->arch.guest_csr;
+
+	if (!kvm_riscv_aia_available())
+		return;
+
+#ifndef CONFIG_64BIT
+	csr_write(CSR_HVIPH, csr->hviph);
+#endif
+	aia_set_hvictl((csr->hvip & BIT(IRQ_VS_EXT)) ? true : false);
+}
+
+void kvm_riscv_vcpu_aia_load(struct kvm_vcpu *vcpu, int cpu)
+{
+	struct kvm_vcpu_csr *csr = &vcpu->arch.guest_csr;
+
+	if (!kvm_riscv_aia_available())
+		return;
+
+	csr_write(CSR_VSISELECT, csr->vsiselect);
+	csr_write(CSR_HVIPRIO1, csr->hviprio1);
+	csr_write(CSR_HVIPRIO2, csr->hviprio2);
+#ifndef CONFIG_64BIT
+	csr_write(CSR_VSIEH, csr->vsieh);
+	csr_write(CSR_HVIPH, csr->hviph);
+	csr_write(CSR_HVIPRIO1H, csr->hviprio1h);
+	csr_write(CSR_HVIPRIO2H, csr->hviprio2h);
+#endif
+}
+
+void kvm_riscv_vcpu_aia_put(struct kvm_vcpu *vcpu)
+{
+	struct kvm_vcpu_csr *csr = &vcpu->arch.guest_csr;
+
+	if (!kvm_riscv_aia_available())
+		return;
+
+	csr->vsiselect = csr_read(CSR_VSISELECT);
+	csr->hviprio1 = csr_read(CSR_HVIPRIO1);
+	csr->hviprio2 = csr_read(CSR_HVIPRIO2);
+#ifndef CONFIG_64BIT
+	csr->vsieh = csr_read(CSR_VSIEH);
+	csr->hviph = csr_read(CSR_HVIPH);
+	csr->hviprio1h = csr_read(CSR_HVIPRIO1H);
+	csr->hviprio2h = csr_read(CSR_HVIPRIO2H);
+#endif
+}
+
+int kvm_riscv_vcpu_aia_get_csr(struct kvm_vcpu *vcpu,
+			       unsigned long reg_num,
+			       unsigned long *out_val)
+{
+	struct kvm_vcpu_csr *csr = &vcpu->arch.guest_csr;
+
+	*out_val = 0;
+	if (kvm_riscv_aia_available())
+		*out_val = ((unsigned long *)csr)[reg_num];
+
+	return 0;
+}
+
+int kvm_riscv_vcpu_aia_set_csr(struct kvm_vcpu *vcpu,
+			       unsigned long reg_num,
+			       unsigned long val)
+{
+	struct kvm_vcpu_csr *csr = &vcpu->arch.guest_csr;
+
+	if (kvm_riscv_aia_available()) {
+		((unsigned long *)csr)[reg_num] = val;
+
+#ifndef CONFIG_64BIT
+		if (reg_num == KVM_REG_RISCV_CSR_REG(siph))
+			WRITE_ONCE(vcpu->arch.irqs_pending_mask[1], 0);
+#endif
+	}
+
+	return 0;
+}
+
+int kvm_riscv_vcpu_aia_rmw_clrsetipnum(struct kvm_vcpu *vcpu,
+				       unsigned int csr_num,
+				       unsigned long *val,
+				       unsigned long new_val,
+				       unsigned long wr_mask)
+{
+	int rc = 1;
+	bool pend, set;
+	unsigned long isel, nval, wmask;
+
+	/* If we can't emulate forward to user-space */
+	if (!kvm_riscv_aia_available() ||
+	    !kvm_riscv_aia_initialized(vcpu->kvm))
+		return 0;
+
+	/* Decode operation type from CSR number */
+	set = pend = false;
+	switch (csr_num) {
+	case CSR_SSETEIPNUM:
+		set = true;
+		pend = true;
+		break;
+	case CSR_SCLREIPNUM:
+		pend = true;
+		break;
+	case CSR_SSETEIENUM:
+		set = true;
+		break;
+	case CSR_SCLREIENUM:
+		break;
+	default:
+		return 0;
+	};
+
+	/* Set/Clear CSRs always read zero */
+	if (val)
+		*val = 0;
+
+	if (wr_mask) {
+		/* Get interrupt number */
+		new_val &= wr_mask;
+
+		/* Find target interrupt pending/enable register */
+		isel = (new_val / BITS_PER_LONG);
+		isel *= (BITS_PER_LONG / IMSIC_EIPx_BITS);
+		isel += (pend) ? IMSIC_EIP0 : IMSIC_EIE0;
+
+		/* Find the interrupt bit to be set/clear */
+		wmask = 1UL << (new_val % BITS_PER_LONG);
+		nval = (set) ? wmask : 0;
+
+		/* Call IMSIC register emulation */
+		rc = kvm_riscv_vcpu_aia_imsic_rmw(vcpu, isel, NULL,
+						  nval, wmask);
+	}
+
+	return rc;
+}
+
+int kvm_riscv_vcpu_aia_rmw_topei(struct kvm_vcpu *vcpu,
+				 unsigned int csr_num,
+				 unsigned long *val,
+				 unsigned long new_val,
+				 unsigned long wr_mask)
+{
+	/* If we can't emulate forward to user-space */
+	if (!kvm_riscv_aia_available() ||
+	    !kvm_riscv_aia_initialized(vcpu->kvm))
+		return 0;
+
+	return kvm_riscv_vcpu_aia_imsic_rmw(vcpu, KVM_RISCV_AIA_IMSIC_TOPEI,
+					    val, new_val, wr_mask);
+}
+
+/*
+ * External IRQ priority always read-only zero. This means default
+ * priority order  is always preferred for external IRQs unless
+ * HVICTL.IID == 9 and HVICTL.IPRIO != 0
+ */
+static int aia_irq2bitpos[] = {
+   0,    8,   -1,   -1,   16,   24,   -1,   -1, /* 0 - 7 */
+  32,   -1,   -1,   -1,   -1,   40,   48,   56, /* 8 - 15 */
+  64,   -1,   72,   -1,   80,   -1,   88,   -1, /* 16 - 23 */
+  96,   -1,  104,   -1,  112,   -1,  120,   -1, /* 24 - 31 */
+  -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1, /* 32 - 39 */
+  -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1, /* 40 - 47 */
+  -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1, /* 48 - 55 */
+  -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1, /* 56 - 63 */
+};
+
+static u8 aia_get_iprio8(struct kvm_vcpu *vcpu, unsigned int irq)
+{
+	unsigned long hviprio;
+	int bitpos = aia_irq2bitpos[irq];
+
+	if (bitpos < 0)
+		return 0;
+
+	switch (bitpos / BITS_PER_LONG) {
+	case 0:
+		hviprio = csr_read(CSR_HVIPRIO1);
+		break;
+	case 1:
+#ifdef CONFIG_64BIT
+		hviprio = csr_read(CSR_HVIPRIO2);
+		break;
+#else
+		hviprio = csr_read(CSR_HVIPRIO1H);
+		break;
+	case 2:
+		hviprio = csr_read(CSR_HVIPRIO2);
+		break;
+	case 3:
+		hviprio = csr_read(CSR_HVIPRIO2H);
+		break;
+#endif
+	default:
+		return 0;
+	};
+
+	return (hviprio >> (bitpos % BITS_PER_LONG)) & TOPI_IPRIO_MASK;
+}
+
+static void aia_set_iprio8(struct kvm_vcpu *vcpu, unsigned int irq, u8 prio)
+{
+	unsigned long hviprio;
+	int bitpos = aia_irq2bitpos[irq];
+
+	if (bitpos < 0)
+		return;
+
+	switch (bitpos / BITS_PER_LONG) {
+	case 0:
+		hviprio = csr_read(CSR_HVIPRIO1);
+		break;
+	case 1:
+#ifdef CONFIG_64BIT
+		hviprio = csr_read(CSR_HVIPRIO2);
+		break;
+#else
+		hviprio = csr_read(CSR_HVIPRIO1H);
+		break;
+	case 2:
+		hviprio = csr_read(CSR_HVIPRIO2);
+		break;
+	case 3:
+		hviprio = csr_read(CSR_HVIPRIO2H);
+		break;
+#endif
+	default:
+		return;
+	};
+
+	hviprio &= ~((unsigned long)TOPI_IPRIO_MASK <<
+		     (bitpos % BITS_PER_LONG));
+	hviprio |= (unsigned long)prio << (bitpos % BITS_PER_LONG);
+
+	switch (bitpos / BITS_PER_LONG) {
+	case 0:
+		csr_write(CSR_HVIPRIO1, hviprio);
+		break;
+	case 1:
+#ifdef CONFIG_64BIT
+		csr_write(CSR_HVIPRIO2, hviprio);
+		break;
+#else
+		csr_write(CSR_HVIPRIO1H, hviprio);
+		break;
+	case 2:
+		csr_write(CSR_HVIPRIO2, hviprio);
+		break;
+	case 3:
+		csr_write(CSR_HVIPRIO2H, hviprio);
+		break;
+#endif
+	default:
+		return;
+	};
+}
+
+static int aia_rmw_iprio(struct kvm_vcpu *vcpu, unsigned int isel,
+			 unsigned long *val, unsigned long new_val,
+			 unsigned long wr_mask)
+{
+	int i, firq, nirqs;
+	unsigned long old_val;
+
+#ifdef CONFIG_64BIT
+	if (isel & 0x1)
+		return 2;
+#endif
+
+	nirqs = 4 * (BITS_PER_LONG / 32);
+	firq = ((isel - ISELECT_IPRIO0) / (BITS_PER_LONG / 32)) * (nirqs);
+
+	old_val = 0;
+	for (i = 0; i < nirqs; i++)
+		old_val |= (unsigned long)aia_get_iprio8(vcpu, firq + i) <<
+			   (TOPI_IPRIO_BITS * i);
+
+	if (val)
+		*val = old_val;
+
+	if (wr_mask) {
+		new_val = (old_val & ~wr_mask) | (new_val & wr_mask);
+		for (i = 0; i < nirqs; i++)
+			aia_set_iprio8(vcpu, firq + i,
+			(new_val >> (TOPI_IPRIO_BITS * i)) & TOPI_IPRIO_MASK);
+	}
+
+	return 1;
+}
+
+int kvm_riscv_vcpu_aia_rmw_ireg(struct kvm_vcpu *vcpu, unsigned int csr_num,
+				unsigned long *val, unsigned long new_val,
+				unsigned long wr_mask)
+{
+	unsigned int isel;
+
+	if (kvm_riscv_aia_available()) {
+		isel = csr_read(CSR_VSISELECT) & ISELECT_MASK;
+		if (ISELECT_IPRIO0 <= isel && isel <= ISELECT_IPRIO15)
+			return aia_rmw_iprio(vcpu, isel, val, new_val,
+					     wr_mask);
+		else if (IMSIC_FIRST <= isel && isel <= IMSIC_LAST &&
+			 kvm_riscv_aia_initialized(vcpu->kvm))
+			return kvm_riscv_vcpu_aia_imsic_rmw(vcpu, isel, val,
+							    new_val, wr_mask);
+	}
+
+	return 0;
+}
+
 int kvm_riscv_aia_alloc_hgei(int cpu, struct kvm_vcpu *owner,
 			     void __iomem **hgei_va, phys_addr_t *hgei_pa)
 {
