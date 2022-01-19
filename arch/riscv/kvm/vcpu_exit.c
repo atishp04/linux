@@ -172,7 +172,9 @@ static int truly_illegal_insn(struct kvm_vcpu *vcpu,
 	return 1;
 }
 
-static const struct csr_func csr_funcs[] = { };
+static const struct csr_func csr_funcs[] = {
+	KVM_RISCV_VCPU_AIA_CSR_FUNCS
+};
 
 int kvm_riscv_vcpu_csr_return(struct kvm_vcpu *vcpu, struct kvm_run *run)
 {
