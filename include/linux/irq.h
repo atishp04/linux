@@ -1247,6 +1247,34 @@ int __ipi_send_mask(struct irq_desc *desc, const struct cpumask *dest);
 int ipi_send_single(unsigned int virq, unsigned int cpu);
 int ipi_send_mask(unsigned int virq, const struct cpumask *dest);
 
+#define IPI_MUX_NR_IRQS		BITS_PER_LONG
+struct ipi_mux_ops {
+	void (*ipi_mux_clear)(unsigned int parent_virq);
+	void (*ipi_mux_send)(unsigned int parent_virq,
+			     const struct cpumask *mask);
+};
+
+/* Process multiplexed IPIs */
+void ipi_mux_process(void);
+
+/*
+ * Create multiple IPIs (total IPI_MUX_NR_IRQS) multiplexed on top of a
+ * single parent IPI.
+ *
+ * If the parent IPI > 0 then ipi_mux_process() will be automatically
+ * called via chained handler.
+ *
+ * If the parent IPI <= 0 then it is responsiblity of irqchip drivers
+ * to explicitly call ipi_mux_process() for processing muxed
+ * IPIs.
+ *
+ * Returns first virq of the muxed IPIs upon success or <=0 upon failure
+ */
+int ipi_mux_create(unsigned int parent_virq, const struct ipi_mux_ops *ops);
+
+/* Destroy multiplexed IPIs */
+void ipi_mux_destroy(void);
+
 #ifdef CONFIG_GENERIC_IRQ_MULTI_HANDLER
 /*
  * Registers a generic IRQ handling function as the top-level IRQ handler in
