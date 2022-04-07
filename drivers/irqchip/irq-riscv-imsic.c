@@ -24,6 +24,7 @@
 #include <linux/platform_device.h>
 #include <linux/spinlock.h>
 #include <linux/smp.h>
+#include <linux/workqueue.h>
 #include <asm/hwcap.h>
 
 #define IMSIC_DISABLE_EIDELIVERY	0
@@ -84,6 +85,14 @@ struct imsic_handler {
 	/* Pointer to private context */
 	struct imsic_priv *priv;
 };
+
+struct imsic_modify_work {
+	struct work_struct work;
+	unsigned long    hwirq;
+	bool enable;
+	struct cpumask tmask;
+};
+static int imsic_schedule_work(struct cpumask *cmask, unsigned long hwirq, bool enable);
 
 static bool imsic_init_done;
 
@@ -209,8 +218,8 @@ static void imsic_id_enable(struct imsic_priv *priv, unsigned int id)
 	raw_spin_unlock(&priv->ids_lock);
 
 	cpumask_and(&amask, &priv->lmask, cpu_online_mask);
-	on_each_cpu_mask(&amask, __imsic_id_enable,
-			 (void *)(unsigned long)id, 1);
+	if (imsic_schedule_work(&amask, id, true) < 0)
+		WARN(1, "IRQ %u enabling failed in IMSIC\n", id);
 }
 
 static void __imsic_id_disable(void *data)
@@ -227,8 +236,36 @@ static void imsic_id_disable(struct imsic_priv *priv, unsigned int id)
 	raw_spin_unlock(&priv->ids_lock);
 
 	cpumask_and(&amask, &priv->lmask, cpu_online_mask);
-	on_each_cpu_mask(&amask, __imsic_id_disable,
-			 (void *)(unsigned long)id, 1);
+	if (imsic_schedule_work(&amask, id, false) < 0)
+		WARN(1, "IRQ %u disabling failed in IMSIC\n", id);
+}
+
+static void imsic_modify_fn(struct work_struct *arg)
+{
+	struct imsic_modify_work *wdata = container_of(arg, struct imsic_modify_work, work);
+	if (wdata->enable)
+		on_each_cpu_mask(&wdata->tmask, __imsic_id_enable, (void *)wdata->hwirq, 1);
+	else
+		on_each_cpu_mask(&wdata->tmask, __imsic_id_disable, (void *)wdata->hwirq, 1);
+
+	kfree(wdata);
+}
+
+static int imsic_schedule_work(struct cpumask *cmask, unsigned long hwirq, bool enable)
+{
+	struct imsic_modify_work *imsic_work;
+
+	imsic_work = kmalloc(sizeof(*imsic_work), GFP_ATOMIC);
+	if (!imsic_work)
+		return -1;
+
+	cpumask_copy(&imsic_work->tmask, cmask);
+	imsic_work->enable = enable;
+	imsic_work->hwirq = hwirq;
+	INIT_WORK(&imsic_work->work, imsic_modify_fn);
+	schedule_work(&imsic_work->work);
+
+	return 0;
 }
 
 static void imsic_ids_local_sync(struct imsic_priv *priv)
