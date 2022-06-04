@@ -46,6 +46,7 @@ struct riscv_pmu {
 	irqreturn_t	(*handle_irq)(int irq_num, void *dev);
 
 	int		num_counters;
+	int		num_hw_counters;
 	u64		(*ctr_read)(struct perf_event *event);
 	int		(*ctr_get_idx)(struct perf_event *event);
 	int		(*ctr_get_width)(int idx);
@@ -69,6 +70,9 @@ void riscv_pmu_legacy_skip_init(void);
 static inline void riscv_pmu_legacy_skip_init(void) {};
 #endif
 struct riscv_pmu *riscv_pmu_alloc(void);
+#ifdef CONFIG_RISCV_PMU_SBI
+int riscv_pmu_sbi_get_num_hw_ctrs(void);
+#endif
 
 #endif /* CONFIG_RISCV_PMU */
 

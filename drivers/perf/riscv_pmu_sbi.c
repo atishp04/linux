@@ -27,6 +27,7 @@
  */
 static union sbi_pmu_ctr_info *pmu_ctr_list;
 static unsigned int riscv_pmu_irq;
+static struct riscv_pmu *rvpmu;
 
 struct sbi_pmu_event_data {
 	union {
@@ -226,6 +227,12 @@ static const struct sbi_pmu_event_data pmu_cache_event_map[PERF_COUNT_HW_CACHE_M
 		},
 	},
 };
+
+int riscv_pmu_sbi_get_num_hw_ctrs(void)
+{
+	return rvpmu ? rvpmu->num_hw_counters : 0;
+}
+EXPORT_SYMBOL(riscv_pmu_sbi_get_num_hw_ctrs);
 
 static int pmu_sbi_ctr_get_width(int idx)
 {
@@ -443,7 +450,7 @@ static int pmu_sbi_find_num_ctrs(void)
 		return sbi_err_map_linux_errno(ret.error);
 }
 
-static int pmu_sbi_get_ctrinfo(int nctr)
+static int pmu_sbi_get_ctrinfo(int nctr, int *num_hw_ctrs)
 {
 	struct sbiret ret;
 	int i, num_hw_ctr = 0, num_fw_ctr = 0;
@@ -453,7 +460,7 @@ static int pmu_sbi_get_ctrinfo(int nctr)
 	if (!pmu_ctr_list)
 		return -ENOMEM;
 
-	for (i = 0; i <= nctr; i++) {
+	for (i = 0; i < nctr; i++) {
 		ret = sbi_ecall(SBI_EXT_PMU, SBI_EXT_PMU_COUNTER_GET_INFO, i, 0, 0, 0, 0, 0);
 		if (ret.error)
 			/* The logical counter ids are not expected to be contiguous */
@@ -466,6 +473,7 @@ static int pmu_sbi_get_ctrinfo(int nctr)
 		pmu_ctr_list[i].value = cinfo.value;
 	}
 
+	*num_hw_ctrs = num_hw_ctr;
 	pr_info("%d firmware and %d hardware counters\n", num_fw_ctr, num_hw_ctr);
 
 	return 0;
@@ -698,7 +706,7 @@ static int pmu_sbi_setup_irqs(struct riscv_pmu *pmu, struct platform_device *pde
 static int pmu_sbi_device_probe(struct platform_device *pdev)
 {
 	struct riscv_pmu *pmu = NULL;
-	int num_counters;
+	int num_counters, num_hw_ctrs = 0;
 	int ret = -ENODEV;
 
 	pr_info("SBI PMU extension is available\n");
@@ -713,7 +721,7 @@ static int pmu_sbi_device_probe(struct platform_device *pdev)
 	}
 
 	/* cache all the information about counters now */
-	if (pmu_sbi_get_ctrinfo(num_counters))
+	if (pmu_sbi_get_ctrinfo(num_counters, &num_hw_ctrs))
 		goto out_free;
 
 	ret = pmu_sbi_setup_irqs(pmu, pdev);
@@ -723,6 +731,7 @@ static int pmu_sbi_device_probe(struct platform_device *pdev)
 		pmu->pmu.capabilities |= PERF_PMU_CAP_NO_EXCLUDE;
 	}
 	pmu->num_counters = num_counters;
+	pmu->num_hw_counters = num_hw_ctrs;
 	pmu->ctr_start = pmu_sbi_ctr_start;
 	pmu->ctr_stop = pmu_sbi_ctr_stop;
 	pmu->event_map = pmu_sbi_event_map;
@@ -733,13 +742,15 @@ static int pmu_sbi_device_probe(struct platform_device *pdev)
 
 	ret = cpuhp_state_add_instance(CPUHP_AP_PERF_RISCV_STARTING, &pmu->node);
 	if (ret)
-		return ret;
+		goto out_free;
 
 	ret = perf_pmu_register(&pmu->pmu, "cpu", PERF_TYPE_RAW);
 	if (ret) {
 		cpuhp_state_remove_instance(CPUHP_AP_PERF_RISCV_STARTING, &pmu->node);
-		return ret;
+		goto out_free;
 	}
+
+	rvpmu = pmu;
 
 	return 0;
 
