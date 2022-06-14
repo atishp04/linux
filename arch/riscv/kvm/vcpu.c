@@ -51,6 +51,7 @@ static const unsigned long kvm_isa_ext_arr[] = {
 	RISCV_ISA_EXT_h,
 	RISCV_ISA_EXT_i,
 	RISCV_ISA_EXT_m,
+	RISCV_ISA_EXT_SSCOFPMF,
 	RISCV_ISA_EXT_SVPBMT,
 };
 
@@ -179,15 +180,12 @@ int kvm_arch_vcpu_create(struct kvm_vcpu *vcpu)
 	/* Setup VCPU timer */
 	kvm_riscv_vcpu_timer_init(vcpu);
 
-<<<<<<< HEAD
 	/* Setup VCPU AIA */
 	rc = kvm_riscv_vcpu_aia_init(vcpu);
 	if (rc)
 		return rc;
-=======
 	/* setup performance monitoring */
 	kvm_riscv_vcpu_pmu_init(vcpu);
->>>>>>> 7abc52bbe5b4... RISC-V: KVM: Add skeleton support for perf
 
 	/* Reset VCPU */
 	kvm_riscv_reset_vcpu(vcpu);
@@ -525,6 +523,7 @@ static int kvm_riscv_vcpu_get_reg_isa_ext(struct kvm_vcpu *vcpu,
 	if (__riscv_isa_extension_available(vcpu->arch.isa, host_isa_ext))
 		reg_val = 1; /* Mark the given extension as available */
 
+	pr_err("%s: reg_num %lx host_isa_ext %lx reg_val %lx\n", __func__, reg_num, host_isa_ext, reg_val);
 	if (copy_to_user(uaddr, &reg_val, KVM_REG_SIZE(reg->id)))
 		return -EFAULT;
 
