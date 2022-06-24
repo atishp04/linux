@@ -183,6 +183,43 @@ int kvm_riscv_vcpu_pmu_incr_fw(struct kvm_vcpu *vcpu, unsigned long fid)
 	return 0;
 }
 
+static void kvm_riscv_pmu_overflow(struct perf_event *perf_event,
+				  struct perf_sample_data *data,
+				  struct pt_regs *regs)
+{
+	struct kvm_pmc *pmc = perf_event->overflow_handler_context;
+	struct kvm_vcpu *vcpu = pmc->vcpu;
+	struct kvm_pmu *kvpmu = vcpu_to_pmu(vcpu);
+	struct riscv_pmu *rpmu = to_riscv_pmu(perf_event->pmu);
+	u64 period;
+
+	pr_err("Got the overflow interrupt for idx %d\n", pmc->idx);
+
+	/* Stop the event counting by directly accessing the perf_event.
+	 * Otherwise, this needs to deferred via a workqueue.
+	 * That will introduce skew in the counter value because the actual
+	 * physical counter would start after returning from this function.
+	 * It will be stopped again once the workqueue is scheduled
+	 */
+	rpmu->pmu.stop(perf_event, PERF_EF_UPDATE);
+
+	/*
+	 * Reset the sample period to the architectural limit,
+	 * i.e. the point where the counter overflows.
+	 */
+	period = -(local64_read(&perf_event->count));
+
+	local64_set(&perf_event->hw.period_left, 0);
+	perf_event->attr.sample_period = period;
+	perf_event->hw.sample_period = period;
+
+	set_bit(pmc->idx, kvpmu->overflow_pmc);
+	kvm_riscv_vcpu_set_interrupt(vcpu, IRQ_PMU_OVF);
+
+	rpmu->pmu.start(perf_event, PERF_EF_RELOAD);
+}
+
+
 int kvm_riscv_vcpu_pmu_ctr_read(struct kvm_vcpu *vcpu, unsigned long cidx,
 				unsigned long *out_val)
 {
@@ -204,6 +241,27 @@ int kvm_riscv_vcpu_pmu_ctr_read(struct kvm_vcpu *vcpu, unsigned long cidx,
 	*out_val = pmc->counter_val;
 
 	return 0;
+}
+
+int kvm_riscv_vcpu_pmu_read_scountovf(struct kvm_vcpu *vcpu, unsigned int csr_num,
+				unsigned long *val, unsigned long new_val,
+				unsigned long wr_mask)
+{
+	struct kvm_pmu *kvpmu = vcpu_to_pmu(vcpu);
+	int ret = KVM_INSN_CONTINUE_NEXT_SEPC;
+
+	if (!kvpmu)
+		return KVM_INSN_EXIT_TO_USER_SPACE;
+	//TODO: Should we check if vcpu pmu is initialized or not!
+	if (wr_mask || (csr_num != CSR_SSCOUNTOVF))
+		return KVM_INSN_ILLEGAL_TRAP;
+
+
+	*val = kvpmu->overflow_pmc[0];
+	kvm_riscv_vcpu_unset_interrupt(vcpu, IRQ_PMU_OVF);
+	pr_err("%s: In smp id %d scountovf %lx\n", __func__, smp_processor_id(), *val);
+
+	return ret;
 }
 
 int kvm_riscv_vcpu_pmu_read_hpm(struct kvm_vcpu *vcpu, unsigned int csr_num,
@@ -266,6 +324,8 @@ int kvm_riscv_vcpu_pmu_ctr_start(struct kvm_vcpu *vcpu, unsigned long ctr_base,
 		pmc_index = i + ctr_base;
 		if (!test_bit(pmc_index, kvpmu->used_pmc))
 			continue;
+		/* The counter is starting again. Clear the overflow bit for the next overflow */
+		clear_bit(pmc_index, kvpmu->overflow_pmc);
 		pmc = &kvpmu->pmc[pmc_index];
 		if (flag & SBI_PMU_START_FLAG_SET_INIT_VALUE)
 			pmc->counter_val = ival;
@@ -407,7 +467,8 @@ match_done:
 	 */
 	attr.sample_period = pmu_get_sample_period(pmc);
 
-	event = perf_event_create_kernel_counter(&attr, -1, current, NULL, pmc);
+	event = perf_event_create_kernel_counter(&attr, -1, current,
+						 kvm_riscv_pmu_overflow, pmc);
 	if (IS_ERR(event)) {
 		pr_err("kvm pmu event creation failed event %pe for eidx %lx\n", event, eidx);
 		return -EOPNOTSUPP;
@@ -452,6 +513,7 @@ int kvm_riscv_vcpu_pmu_init(struct kvm_vcpu *vcpu)
 	}
 
 	bitmap_zero(kvpmu->used_pmc, RISCV_MAX_COUNTERS);
+	bitmap_zero(kvpmu->overflow_pmc, RISCV_MAX_COUNTERS);
 	kvpmu->num_hw_ctrs = num_hw_ctrs;
 	kvpmu->num_fw_ctrs = num_fw_ctrs;
 	memset(&kvpmu->fw_event, 0, SBI_PMU_FW_MAX * sizeof(struct kvm_fw_event));

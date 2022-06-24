@@ -44,6 +44,7 @@ struct kvm_pmu {
 	int num_hw_ctrs;
 	/* Bit map of all the virtual counter used */
 	DECLARE_BITMAP(used_pmc, RISCV_MAX_COUNTERS);
+	DECLARE_BITMAP(overflow_pmc, RISCV_MAX_COUNTERS);
 };
 
 #define vcpu_to_pmu(vcpu) (&(vcpu)->arch.pmu)
@@ -59,11 +60,18 @@ struct kvm_pmu {
 { .base = CSR_CYCLE,      .count = 31, .func = kvm_riscv_vcpu_pmu_read_hpm },
 #endif
 
+#define KVM_RISCV_VCPU_SCOUNTOVF_CSR_FUNC \
+{ .base = CSR_SSCOUNTOVF,      .count = 1, .func = kvm_riscv_vcpu_pmu_read_scountovf }, \
+
+
 int kvm_riscv_vcpu_pmu_incr_fw(struct kvm_vcpu *vcpu, unsigned long fid);
 int kvm_riscv_vcpu_pmu_read_hpm(struct kvm_vcpu *vcpu, unsigned int csr_num,
 				unsigned long *val, unsigned long new_val,
 				unsigned long wr_mask);
 
+int kvm_riscv_vcpu_pmu_read_scountovf(struct kvm_vcpu *vcpu, unsigned int csr_num,
+				unsigned long *val, unsigned long new_val,
+				unsigned long wr_mask);
 int kvm_riscv_vcpu_pmu_num_ctrs(struct kvm_vcpu *vcpu, unsigned long *out_val);
 int kvm_riscv_vcpu_pmu_ctr_info(struct kvm_vcpu *vcpu, unsigned long cidx,
 				unsigned long *ctr_info);

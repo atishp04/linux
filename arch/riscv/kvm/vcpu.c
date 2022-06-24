@@ -51,8 +51,8 @@ static const unsigned long kvm_isa_ext_arr[] = {
 	RISCV_ISA_EXT_h,
 	RISCV_ISA_EXT_i,
 	RISCV_ISA_EXT_m,
-	RISCV_ISA_EXT_SSCOFPMF,
 	RISCV_ISA_EXT_SVPBMT,
+	RISCV_ISA_EXT_SSCOFPMF,
 };
 
 static unsigned long kvm_riscv_vcpu_base2isa_ext(unsigned long base_ext)
@@ -721,6 +721,8 @@ void kvm_riscv_vcpu_flush_interrupts(struct kvm_vcpu *vcpu)
 
 		csr->hvip &= ~mask;
 		csr->hvip |= val;
+		if (csr->hvip & (1UL << IRQ_PMU_OVF) || (mask & (1 << IRQ_PMU_OVF)))
+			pr_err("%s: csr->hvip %lx\n", __func__, csr->hvip);
 	}
 
 	/* Flush AIA high interrupts */
@@ -764,7 +766,8 @@ int kvm_riscv_vcpu_set_interrupt(struct kvm_vcpu *vcpu, unsigned int irq)
 	if (irq < IRQ_LOCAL_MAX &&
 	    irq != IRQ_VS_SOFT &&
 	    irq != IRQ_VS_TIMER &&
-	    irq != IRQ_VS_EXT)
+	    irq != IRQ_VS_EXT &&
+	    irq != IRQ_PMU_OVF)
 		return -EINVAL;
 
 	set_bit(irq, vcpu->arch.irqs_pending);
@@ -786,11 +789,14 @@ int kvm_riscv_vcpu_unset_interrupt(struct kvm_vcpu *vcpu, unsigned int irq)
 	if (irq < IRQ_LOCAL_MAX &&
 	    irq != IRQ_VS_SOFT &&
 	    irq != IRQ_VS_TIMER &&
-	    irq != IRQ_VS_EXT)
+	    irq != IRQ_VS_EXT &&
+	    irq != IRQ_PMU_OVF)
 		return -EINVAL;
 
 	clear_bit(irq, vcpu->arch.irqs_pending);
 	smp_mb__before_atomic();
+	if (irq == IRQ_PMU_OVF)
+		pr_err("%s: cleared ovf in irqs_pending %lx\n", __func__, vcpu->arch.irqs_pending[0]);
 	set_bit(irq, vcpu->arch.irqs_pending_mask);
 
 	return 0;
@@ -802,7 +808,7 @@ bool kvm_riscv_vcpu_has_interrupts(struct kvm_vcpu *vcpu, u64 mask)
 
 	ie = ((vcpu->arch.guest_csr.vsie & VSIP_VALID_MASK)
 		<< VSIP_TO_HVIP_SHIFT) & (unsigned long)mask;
-	ie |= vcpu->arch.guest_csr.vsie & ~IRQ_LOCAL_MASK &
+	ie |= vcpu->arch.guest_csr.vsie & ~(0xFFF) &
 		(unsigned long)mask;
 	if (READ_ONCE(vcpu->arch.irqs_pending[0]) & ie)
 		return true;

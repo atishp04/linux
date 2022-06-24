@@ -51,6 +51,7 @@ int kvm_arch_hardware_enable(void)
 
 	/* VS should access only TM bit. Everything else should trap */
 	csr_write(CSR_HCOUNTEREN, 0x02);
+	csr_write(CSR_HVIEN, 1UL << IRQ_PMU_OVF);
 
 	csr_write(CSR_HVIP, 0);
 
