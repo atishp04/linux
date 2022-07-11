@@ -250,6 +250,31 @@ static bool pmu_sbi_ctr_is_fw(int cidx)
 	return (info->type == SBI_PMU_CTR_TYPE_FW) ? true : false;
 }
 
+/*
+ * Returns the counter width of a programmable counter
+ * As we don't support heterneous CPUs yet, it is okay to just
+ * return the counter width of the first programmable counter.
+ */
+int riscv_pmu_sbi_hpmc_width(void)
+{
+	int i;
+	union sbi_pmu_ctr_info *info;
+
+	if (!rvpmu)
+		return -EINVAL;
+
+	for (i = 0; i < rvpmu->num_counters; i++) {
+		info = &pmu_ctr_list[i];
+		if (!info)
+			continue;
+		if (info->type == SBI_PMU_CTR_TYPE_HW)
+			return info->width;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(riscv_pmu_sbi_hpmc_width);
+
 static int pmu_sbi_ctr_get_idx(struct perf_event *event)
 {
 	struct hw_perf_event *hwc = &event->hw;

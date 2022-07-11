@@ -72,6 +72,7 @@ static inline void riscv_pmu_legacy_skip_init(void) {};
 struct riscv_pmu *riscv_pmu_alloc(void);
 #ifdef CONFIG_RISCV_PMU_SBI
 int riscv_pmu_sbi_get_num_hw_ctrs(void);
+int riscv_pmu_sbi_hpmc_width(void);
 #endif
 
 #endif /* CONFIG_RISCV_PMU */
