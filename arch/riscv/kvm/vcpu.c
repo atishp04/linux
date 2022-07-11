@@ -125,6 +125,7 @@ static void kvm_riscv_reset_vcpu(struct kvm_vcpu *vcpu)
 
 	bitmap_zero(vcpu->arch.irqs_pending, KVM_RISCV_VCPU_NR_IRQS);
 	bitmap_zero(vcpu->arch.irqs_pending_mask, KVM_RISCV_VCPU_NR_IRQS);
+	kvm_riscv_vcpu_pmu_reset(vcpu);
 
 	vcpu->arch.hfence_head = 0;
 	vcpu->arch.hfence_tail = 0;
@@ -178,10 +179,15 @@ int kvm_arch_vcpu_create(struct kvm_vcpu *vcpu)
 	/* Setup VCPU timer */
 	kvm_riscv_vcpu_timer_init(vcpu);
 
+<<<<<<< HEAD
 	/* Setup VCPU AIA */
 	rc = kvm_riscv_vcpu_aia_init(vcpu);
 	if (rc)
 		return rc;
+=======
+	/* setup performance monitoring */
+	kvm_riscv_vcpu_pmu_init(vcpu);
+>>>>>>> 7abc52bbe5b4... RISC-V: KVM: Add skeleton support for perf
 
 	/* Reset VCPU */
 	kvm_riscv_reset_vcpu(vcpu);
@@ -208,6 +214,7 @@ void kvm_arch_vcpu_destroy(struct kvm_vcpu *vcpu)
 	/* Cleanup VCPU timer */
 	kvm_riscv_vcpu_timer_deinit(vcpu);
 
+	kvm_riscv_vcpu_pmu_deinit(vcpu);
 	/* Free unused pages pre-allocated for G-stage page table mappings */
 	kvm_mmu_free_memory_cache(&vcpu->arch.mmu_page_cache);
 }
