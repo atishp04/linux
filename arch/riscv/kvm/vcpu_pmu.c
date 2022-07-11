@@ -14,6 +14,46 @@
 #include <asm/kvm_vcpu_pmu.h>
 #include <linux/kvm_host.h>
 
+int kvm_riscv_vcpu_pmu_ctr_read(struct kvm_vcpu *vcpu, unsigned long cidx,
+				unsigned long *out_val)
+{
+	struct kvm_pmu *kvpmu = vcpu_to_pmu(vcpu);
+	struct kvm_pmc *pmc;
+	u64 enabled, running;
+
+	if (!kvpmu)
+		return -EINVAL;
+
+	pmc = &kvpmu->pmc[cidx];
+	if (!pmc->perf_event)
+		return -EINVAL;
+
+	pmc->counter_val += perf_event_read_value(pmc->perf_event, &enabled, &running);
+	*out_val = pmc->counter_val;
+
+	return 0;
+}
+
+int kvm_riscv_vcpu_pmu_read_hpm(struct kvm_vcpu *vcpu, unsigned int csr_num,
+				unsigned long *val, unsigned long new_val,
+				unsigned long wr_mask)
+{
+	struct kvm_pmu *kvpmu = vcpu_to_pmu(vcpu);
+	int cidx, ret = KVM_INSN_CONTINUE_NEXT_SEPC;
+
+	if (!kvpmu)
+		return KVM_INSN_EXIT_TO_USER_SPACE;
+	//TODO: Should we check if vcpu pmu is initialized or not!
+	if (wr_mask)
+		return KVM_INSN_ILLEGAL_TRAP;
+	cidx = csr_num - CSR_CYCLE;
+
+	if (kvm_riscv_vcpu_pmu_ctr_read(vcpu, cidx, val) < 0)
+		return KVM_INSN_EXIT_TO_USER_SPACE;
+
+	return ret;
+}
+
 int kvm_riscv_vcpu_pmu_num_ctrs(struct kvm_vcpu *vcpu, unsigned long *out_val)
 {
 	struct kvm_pmu *kvpmu = vcpu_to_pmu(vcpu);
@@ -55,13 +95,6 @@ int kvm_riscv_vcpu_pmu_ctr_stop(struct kvm_vcpu *vcpu, unsigned long ctr_base,
 int kvm_riscv_vcpu_pmu_ctr_cfg_match(struct kvm_vcpu *vcpu, unsigned long ctr_base,
 				     unsigned long ctr_mask, unsigned long flag,
 				     unsigned long eidx, uint64_t edata)
-{
-	/* TODO */
-	return 0;
-}
-
-int kvm_riscv_vcpu_pmu_ctr_read(struct kvm_vcpu *vcpu, unsigned long cidx,
-				unsigned long *out_val)
 {
 	/* TODO */
 	return 0;
