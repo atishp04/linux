@@ -545,6 +545,9 @@ void kvm_riscv_aia_enable(void)
 	enable_percpu_irq(hgei_parent_irq,
 			  irq_get_trigger_type(hgei_parent_irq));
 	csr_set(CSR_HIE, BIT(IRQ_S_GEXT));
+	/* Enable IRQ filtering for overflow interrupt only if sscofpmf is present */
+	if (__riscv_isa_extension_available(NULL, RISCV_ISA_EXT_SSCOFPMF))
+		csr_write(CSR_HVIEN, BIT(IRQ_PMU_OVF));
 }
 
 void kvm_riscv_aia_disable(void)
@@ -560,6 +563,8 @@ void kvm_riscv_aia_disable(void)
 
 	/* Disable per-CPU SGEI interrupt */
 	csr_clear(CSR_HIE, BIT(IRQ_S_GEXT));
+	if (__riscv_isa_extension_available(NULL, RISCV_ISA_EXT_SSCOFPMF))
+		csr_clear(CSR_HVIEN, BIT(IRQ_PMU_OVF));
 	disable_percpu_irq(hgei_parent_irq);
 
 	aia_set_hvictl(false);
@@ -639,6 +644,7 @@ int kvm_riscv_aia_init(void)
 		return rc;
 	}
 
+	pr_err("%s: aia init enable aia support\n", __func__);
 	/* Enable KVM AIA support */
 	static_branch_enable(&kvm_riscv_aia_available);
 

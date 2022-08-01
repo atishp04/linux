@@ -269,6 +269,7 @@ enum sbi_ext_dbcn_fid {
 #define SBI_ERR_ALREADY_AVAILABLE -6
 #define SBI_ERR_ALREADY_STARTED -7
 #define SBI_ERR_ALREADY_STOPPED -8
+#define SBI_ERR_NO_SHMEM 	-9
 
 extern unsigned long sbi_spec_version;
 struct sbiret {
