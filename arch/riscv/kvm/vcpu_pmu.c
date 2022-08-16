@@ -208,12 +208,14 @@ static void kvm_riscv_pmu_overflow(struct perf_event *perf_event,
 	 * i.e. the point where the counter overflows.
 	 */
 	period = -(local64_read(&perf_event->count));
+	pr_err("Compute the period %lx\n", period);
 
 	local64_set(&perf_event->hw.period_left, 0);
 	perf_event->attr.sample_period = period;
 	perf_event->hw.sample_period = period;
 
 	set_bit(pmc->idx, kvpmu->overflow_pmc);
+	pr_err("Set the interrupt %lx\n", period);
 	kvm_riscv_vcpu_set_interrupt(vcpu, IRQ_PMU_OVF);
 
 	rpmu->pmu.start(perf_event, PERF_EF_RELOAD);

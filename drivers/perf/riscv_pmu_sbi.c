@@ -21,6 +21,7 @@
 #include <asm/sbi.h>
 #include <asm/hwcap.h>
 
+extern int inguest;
 /*
  * RISC-V doesn't have hetergenous harts yet. This need to be part of
  * per_cpu in case of harts with different pmu counters
@@ -428,6 +429,7 @@ static int pmu_sbi_event_map(struct perf_event *event, u64 *econfig)
 	return ret;
 }
 
+
 static u64 pmu_sbi_ctr_read(struct perf_event *event)
 {
 	struct hw_perf_event *hwc = &event->hw;
@@ -601,6 +603,7 @@ static irqreturn_t pmu_sbi_ovf_handler(int irq, void *dev)
 	if (WARN_ON_ONCE(!cpu_hw_evt))
 		return IRQ_NONE;
 
+	//pr_err("%s: In \n", __func__);
 	/* Firmware counter don't support overflow yet */
 	fidx = find_first_bit(cpu_hw_evt->used_hw_ctrs, RISCV_MAX_COUNTERS);
 	event = cpu_hw_evt->events[fidx];
@@ -613,8 +616,9 @@ static irqreturn_t pmu_sbi_ovf_handler(int irq, void *dev)
 	pmu_sbi_stop_hw_ctrs(pmu);
 
 	/* Overflow status register should only be read after counter are stopped */
+	if (inguest == 3)
+		pr_err("In guest: interrupt handler \n");
 	overflow = csr_read(CSR_SSCOUNTOVF);
-
 	/*
 	 * Overflow interrupt pending bit should only be cleared after stopping
 	 * all the counters to avoid any race condition.
@@ -627,6 +631,7 @@ static irqreturn_t pmu_sbi_ovf_handler(int irq, void *dev)
 
 	regs = get_irq_regs();
 
+	pr_err("%s: in overflow for counters %lx\n", __func__, overflow);
 	for_each_set_bit(lidx, cpu_hw_evt->used_hw_ctrs, RISCV_MAX_COUNTERS) {
 		struct perf_event *event = cpu_hw_evt->events[lidx];
 
@@ -665,6 +670,8 @@ static irqreturn_t pmu_sbi_ovf_handler(int irq, void *dev)
 			perf_event_overflow(event, &data, regs);
 		}
 	}
+	if (inguest == 3)
+		pr_err("start the counter again\n\n");
 	pmu_sbi_start_overflow_mask(pmu, overflowed_ctrs);
 
 	return IRQ_HANDLED;
