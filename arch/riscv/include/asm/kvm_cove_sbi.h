@@ -24,8 +24,7 @@ int sbi_covh_tsm_local_fence(void);
 int sbi_covh_tsm_create_tvm(struct sbi_cove_tvm_create_params *tparam, unsigned long *tvmid);
 int sbi_covh_tsm_finalize_tvm(unsigned long tvmid, unsigned long sepc, unsigned long entry_arg);
 int sbi_covh_tsm_destroy_tvm(unsigned long tvmid);
-int sbi_covh_add_memory_region(unsigned long tvmid, enum sbi_cove_mem_type,
-			       unsigned long tgpadr, unsigned long rlen);
+int sbi_covh_add_memory_region(unsigned long tvmid, unsigned long tgpadr, unsigned long rlen);
 
 int sbi_covh_tsm_reclaim_pages(unsigned long phys_addr, unsigned long npages);
 int sbi_covh_tsm_convert_pages(unsigned long phys_addr, unsigned long npages);

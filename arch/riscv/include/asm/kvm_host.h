@@ -88,6 +88,8 @@ struct kvm_vmid {
 };
 
 struct kvm_arch {
+	unsigned long vm_type;
+
 	/* G-stage vmid */
 	struct kvm_vmid vmid;
 
@@ -100,6 +102,9 @@ struct kvm_arch {
 
 	/* AIA Guest/VM context */
 	struct kvm_aia aia;
+
+	/* COVE guest/VM context */
+	struct kvm_cove_tvm_context *tvmc;
 };
 
 struct kvm_cpu_trap {
@@ -242,6 +247,8 @@ struct kvm_vcpu_arch {
 
 	/* Performance monitoring context */
 	struct kvm_pmu pmu_context;
+
+	struct kvm_cove_tvm_vcpu_context *tc;
 };
 
 static inline void kvm_arch_sync_events(struct kvm *kvm) {}

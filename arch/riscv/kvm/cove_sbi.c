@@ -85,9 +85,7 @@ int sbi_covh_tsm_create_tvm(struct sbi_cove_tvm_create_params *tparam, unsigned 
 		goto done;
 	}
 
-	kvm_info("%s: create_tvm tvmid %lx\n", __func__, ret.value);
 	*tvmid = ret.value;
-
 done:
 	return rc;
 }
@@ -118,8 +116,8 @@ int sbi_covh_tsm_destroy_tvm(unsigned long tvmid)
 	return 0;
 }
 
-int sbi_covh_add_memory_region(unsigned long tvmid, enum sbi_cove_mem_type mtype,
-			       unsigned long tgpaddr, unsigned long rlen)
+int sbi_covh_add_memory_region(unsigned long tvmid, unsigned long tgpaddr,
+			       unsigned long rlen)
 {
 	struct sbiret ret;
 
