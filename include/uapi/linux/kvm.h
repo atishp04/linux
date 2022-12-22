@@ -656,6 +656,12 @@ struct kvm_enable_cap {
 #define KVM_VM_TYPE_ARM_IPA_SIZE_MASK	0xffULL
 #define KVM_VM_TYPE_ARM_IPA_SIZE(x)		\
 	((x) & KVM_VM_TYPE_ARM_IPA_SIZE_MASK)
+
+/*
+ * RISCV-V Confidential VM type. The large bit shift is chosen on purpose
+ * to allow other architectures to have their specific VM types if required.
+ */
+#define KVM_VM_TYPE_RISCV_COVE	(1UL << 9)
 /*
  * ioctls for /dev/kvm fds:
  */
