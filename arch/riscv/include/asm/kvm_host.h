@@ -87,6 +87,8 @@ struct kvm_vmid {
 };
 
 struct kvm_arch {
+	unsigned long vm_type;
+
 	/* G-stage vmid */
 	struct kvm_vmid vmid;
 
@@ -99,6 +101,9 @@ struct kvm_arch {
 
 	/* AIA guest/VM context */
 	struct kvm_aia aia;
+
+	/* TEE guest/VM context */
+	struct kvm_tee_tvm_context *tvmc;
 };
 
 struct kvm_cpu_trap {
@@ -238,6 +243,8 @@ struct kvm_vcpu_arch {
 
 	/* Don't run the VCPU (blocked) */
 	bool pause;
+
+	struct kvm_tee_tvm_vcpu_context *tc;
 };
 
 static inline void kvm_arch_hardware_unsetup(void) {}
