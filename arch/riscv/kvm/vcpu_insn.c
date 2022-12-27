@@ -6,6 +6,7 @@
 
 #include <linux/bitops.h>
 #include <linux/kvm_host.h>
+#include <asm/kvm_tee.h>
 
 #define INSN_OPCODE_MASK	0x007c
 #define INSN_OPCODE_SHIFT	2
@@ -416,6 +417,17 @@ int kvm_riscv_vcpu_virtual_insn(struct kvm_vcpu *vcpu, struct kvm_run *run,
 	if (unlikely(INSN_IS_16BIT(insn))) {
 		if (insn == 0) {
 			ct = &vcpu->arch.guest_context;
+
+			/* The host is not allowed do a unpriv read into the TEE VM */
+			if (unlikely(is_tee_vcpu(vcpu))) {
+				/* Redirect trap host with enough trap information */
+				utrap.sepc = ct->sepc;
+				utrap.scause = EXC_INST_PAGE_FAULT;
+				utrap.stval = insn;
+				kvm_riscv_vcpu_trap_redirect(vcpu, &utrap);
+				return 1;
+			}
+
 			insn = kvm_riscv_vcpu_unpriv_read(vcpu, true,
 							  ct->sepc,
 							  &utrap);
@@ -468,6 +480,16 @@ int kvm_riscv_vcpu_mmio_load(struct kvm_vcpu *vcpu, struct kvm_run *run,
 		insn = htinst | INSN_16BIT_MASK;
 		insn_len = (htinst & BIT(1)) ? INSN_LEN(insn) : 2;
 	} else {
+		/* The host is not allowed do a unpriv read into the TEE VM */
+		if (unlikely(is_tee_vcpu(vcpu))) {
+			/* Redirect trap host with enough trap information */
+			utrap.sepc = ct->sepc;
+			utrap.scause = EXC_LOAD_PAGE_FAULT;
+			utrap.stval = fault_addr;
+			kvm_riscv_vcpu_trap_redirect(vcpu, &utrap);
+			return 1;
+
+		}
 		/*
 		 * Bit[0] == 0 implies trapped instruction value is
 		 * zero or special value.
@@ -594,6 +616,16 @@ int kvm_riscv_vcpu_mmio_store(struct kvm_vcpu *vcpu, struct kvm_run *run,
 		insn = htinst | INSN_16BIT_MASK;
 		insn_len = (htinst & BIT(1)) ? INSN_LEN(insn) : 2;
 	} else {
+		/* The host is not allowed do a unpriv read into the TEE VM */
+		if (unlikely(is_tee_vcpu(vcpu))) {
+			/* Redirect trap host with enough trap information */
+			utrap.sepc = ct->sepc;
+			utrap.scause = EXC_STORE_PAGE_FAULT;
+			utrap.stval = fault_addr;
+			kvm_riscv_vcpu_trap_redirect(vcpu, &utrap);
+			return 1;
+
+		}
 		/*
 		 * Bit[0] == 0 implies trapped instruction value is
 		 * zero or special value.
