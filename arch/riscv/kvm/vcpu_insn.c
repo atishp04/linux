@@ -6,6 +6,7 @@
 
 #include <linux/bitops.h>
 #include <linux/kvm_host.h>
+#include <asm/kvm_cove.h>
 
 #define INSN_OPCODE_MASK	0x007c
 #define INSN_OPCODE_SHIFT	2
@@ -153,6 +154,10 @@ static int truly_illegal_insn(struct kvm_vcpu *vcpu, struct kvm_run *run,
 {
 	struct kvm_cpu_trap utrap = { 0 };
 
+	/* The host can not redirect any illegal instruction trap to TVM */
+	if (unlikely(is_cove_vcpu(vcpu)))
+		return -EPERM;
+
 	/* Redirect trap to Guest VCPU */
 	utrap.sepc = vcpu->arch.guest_context.sepc;
 	utrap.scause = EXC_INST_ILLEGAL;
@@ -168,6 +173,10 @@ static int truly_virtual_insn(struct kvm_vcpu *vcpu, struct kvm_run *run,
 			      ulong insn)
 {
 	struct kvm_cpu_trap utrap = { 0 };
+
+	/* The host can not redirect any virtual instruction trap to TVM */
+	if (unlikely(is_cove_vcpu(vcpu)))
+		return -EPERM;
 
 	/* Redirect trap to Guest VCPU */
 	utrap.sepc = vcpu->arch.guest_context.sepc;
@@ -417,6 +426,10 @@ int kvm_riscv_vcpu_virtual_insn(struct kvm_vcpu *vcpu, struct kvm_run *run,
 	if (unlikely(INSN_IS_16BIT(insn))) {
 		if (insn == 0) {
 			ct = &vcpu->arch.guest_context;
+
+			if (unlikely(is_cove_vcpu(vcpu)))
+				return -EPERM;
+
 			insn = kvm_riscv_vcpu_unpriv_read(vcpu, true,
 							  ct->sepc,
 							  &utrap);
@@ -469,6 +482,8 @@ int kvm_riscv_vcpu_mmio_load(struct kvm_vcpu *vcpu, struct kvm_run *run,
 		insn = htinst | INSN_16BIT_MASK;
 		insn_len = (htinst & BIT(1)) ? INSN_LEN(insn) : 2;
 	} else {
+		if (unlikely(is_cove_vcpu(vcpu)))
+			return -EFAULT;
 		/*
 		 * Bit[0] == 0 implies trapped instruction value is
 		 * zero or special value.
@@ -595,6 +610,8 @@ int kvm_riscv_vcpu_mmio_store(struct kvm_vcpu *vcpu, struct kvm_run *run,
 		insn = htinst | INSN_16BIT_MASK;
 		insn_len = (htinst & BIT(1)) ? INSN_LEN(insn) : 2;
 	} else {
+		if (unlikely(is_cove_vcpu(vcpu)))
+			return -EFAULT;
 		/*
 		 * Bit[0] == 0 implies trapped instruction value is
 		 * zero or special value.
