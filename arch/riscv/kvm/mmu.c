@@ -16,7 +16,10 @@
 #include <linux/kvm_host.h>
 #include <linux/sched/signal.h>
 #include <asm/kvm_nacl.h>
+#include <asm/csr.h>
+#include <asm/kvm_host.h>
 #include <asm/kvm_mmu.h>
+#include <asm/kvm_tee.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
 
@@ -340,6 +343,11 @@ int kvm_riscv_gstage_ioremap(struct kvm *kvm, gpa_t gpa,
 		.gfp_zero = __GFP_ZERO,
 	};
 
+	if (is_tee_vm(kvm)) {
+		kvm_debug("%s: KVM doesn't support TEE VM io region mapping\n", __func__);
+		return -EPERM;
+	}
+
 	end = (gpa + size + PAGE_SIZE - 1) & PAGE_MASK;
 	pfn = __phys_to_pfn(hpa);
 
@@ -369,6 +377,10 @@ out:
 
 void kvm_riscv_gstage_iounmap(struct kvm *kvm, gpa_t gpa, unsigned long size)
 {
+	/* KVM doesn't map any IO region in gstage for TVM */
+	if (is_tee_vm(kvm))
+		return;
+
 	spin_lock(&kvm->mmu_lock);
 	gstage_unmap_range(kvm, gpa, size, false);
 	spin_unlock(&kvm->mmu_lock);
@@ -414,6 +426,10 @@ void kvm_arch_flush_shadow_memslot(struct kvm *kvm,
 {
 	gpa_t gpa = slot->base_gfn << PAGE_SHIFT;
 	phys_addr_t size = slot->npages << PAGE_SHIFT;
+
+	/* No need to unmap gstage as it is managed by TSM */
+	if (is_tee_vm(kvm))
+		return;
 
 	spin_lock(&kvm->mmu_lock);
 	gstage_unmap_range(kvm, gpa, size, false);
@@ -531,7 +547,7 @@ out:
 
 bool kvm_unmap_gfn_range(struct kvm *kvm, struct kvm_gfn_range *range)
 {
-	if (!kvm->arch.pgd)
+	if (!kvm->arch.pgd || is_tee_vm(kvm))
 		return false;
 
 	gstage_unmap_range(kvm, range->start << PAGE_SHIFT,
@@ -545,7 +561,7 @@ bool kvm_set_spte_gfn(struct kvm *kvm, struct kvm_gfn_range *range)
 	int ret;
 	kvm_pfn_t pfn = pte_pfn(range->pte);
 
-	if (!kvm->arch.pgd)
+	if (!kvm->arch.pgd || is_tee_vm(kvm))
 		return false;
 
 	WARN_ON(range->end - range->start != 1);
@@ -566,7 +582,7 @@ bool kvm_age_gfn(struct kvm *kvm, struct kvm_gfn_range *range)
 	u32 ptep_level = 0;
 	u64 size = (range->end - range->start) << PAGE_SHIFT;
 
-	if (!kvm->arch.pgd)
+	if (!kvm->arch.pgd || is_tee_vm(kvm))
 		return false;
 
 	WARN_ON(size != PAGE_SIZE && size != PMD_SIZE && size != PGDIR_SIZE);
@@ -584,7 +600,7 @@ bool kvm_test_age_gfn(struct kvm *kvm, struct kvm_gfn_range *range)
 	u32 ptep_level = 0;
 	u64 size = (range->end - range->start) << PAGE_SHIFT;
 
-	if (!kvm->arch.pgd)
+	if (!kvm->arch.pgd || is_tee_vm(kvm))
 		return false;
 
 	WARN_ON(size != PAGE_SIZE && size != PMD_SIZE && size != PGDIR_SIZE);
@@ -713,6 +729,10 @@ int kvm_riscv_gstage_alloc_pgd(struct kvm *kvm)
 void kvm_riscv_gstage_free_pgd(struct kvm *kvm)
 {
 	void *pgd = NULL;
+
+	/* PGD is mapped in TSM */
+	if (is_tee_vm(kvm))
+		return;
 
 	spin_lock(&kvm->mmu_lock);
 	if (kvm->arch.pgd) {
