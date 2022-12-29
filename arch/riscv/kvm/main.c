@@ -105,6 +105,11 @@ int kvm_arch_init(void *opaque)
 		return -ENODEV;
 	}
 
+	rc = kvm_riscv_tee_init();
+	if (!rc)
+		goto skip_hmode_ops;
+
+	//TODO: We don't RFENCE extension as TEEH has its own FIDs fro flushing TLB
 	if (sbi_probe_extension(SBI_EXT_RFENCE) <= 0) {
 		kvm_info("require SBI RFENCE extension\n");
 		return -ENODEV;
@@ -124,6 +129,7 @@ int kvm_arch_init(void *opaque)
 		return rc;
 	}
 
+skip_hmode_ops:
 	kvm_info("hypervisor extension available\n");
 
 	if (kvm_riscv_nacl_available())
