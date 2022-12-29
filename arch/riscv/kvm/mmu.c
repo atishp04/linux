@@ -483,6 +483,12 @@ int kvm_arch_prepare_memory_region(struct kvm *kvm,
 
 	mmap_read_lock(current->mm);
 
+	/* TODO: Do we need to invoke this with lock held */
+	if (is_tee_vm(kvm)) {
+		ret = kvm_riscv_tee_vm_add_memreg(kvm, base_gpa, size);
+		if (ret)
+			return ret;
+	}
 	/*
 	 * A memory region could potentially cover multiple VMAs, and
 	 * any holes between them, so iterate over all of them to find
