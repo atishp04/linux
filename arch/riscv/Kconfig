@@ -501,6 +501,19 @@ config FPU
 
 	  If you don't know what to do here, say Y.
 
+menu "Confidential VM Extension(CoVE) Support"
+
+config RISCV_COVE_HOST
+	bool "Host(KVM) support for Confidential VM Extension(CoVE)"
+	depends on KVM
+	default n
+	help
+            Enable this if the platform supports confidential vm extension.
+	    That means the platform should be capable of running Truested VM (TVM)
+	    using KVM and Trusted Security Monitor (TSM).
+
+endmenu # "Confidential VM Extension(CoVE) Support"
+
 endmenu # "Platform type"
 
 menu "Kernel features"
