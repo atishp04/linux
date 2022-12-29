@@ -102,14 +102,11 @@ static int __init riscv_kvm_init(void)
 		return -ENODEV;
 	}
 
-	if (sbi_probe_extension(SBI_EXT_RFENCE) <= 0) {
-		kvm_info("require SBI RFENCE extension\n");
-		return -ENODEV;
-	}
-
 	rc = kvm_riscv_nacl_init();
 	if (rc && rc != -ENODEV)
 		return rc;
+
+	kvm_riscv_cove_init();
 
 	kvm_riscv_gstage_mode_detect();
 
@@ -119,6 +116,15 @@ static int __init riscv_kvm_init(void)
 	if (rc && rc != -ENODEV) {
 		kvm_riscv_nacl_exit();
 		return rc;
+	}
+
+	/* TVM don't need RFENCE extension as hardware imsic support is mandatory for TVMs
+	 * TODO: This check should happen later if HW_ACCEL mode is not set as RFENCE
+	 * should only be mandatory in that case.
+	 */
+	if (!kvm_riscv_cove_enabled() && sbi_probe_extension(SBI_EXT_RFENCE) <= 0) {
+		kvm_info("require SBI RFENCE extension\n");
+		return -ENODEV;
 	}
 
 	kvm_info("hypervisor extension available\n");
