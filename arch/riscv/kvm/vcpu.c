@@ -566,6 +566,11 @@ void kvm_arch_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
 	struct kvm_vcpu_csr *csr = &vcpu->arch.guest_csr;
 	struct kvm_vcpu_config *cfg = &vcpu->arch.cfg;
 
+	if (is_cove_vcpu(vcpu)) {
+		kvm_riscv_cove_vcpu_load(vcpu);
+		goto skip_load;
+	}
+
 	if (kvm_riscv_nacl_sync_csr_available()) {
 		nsh = nacl_shmem();
 		nacl_csr_write(nsh, CSR_VSSTATUS, csr->vsstatus);
@@ -622,6 +627,7 @@ void kvm_arch_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
 
 	kvm_make_request(KVM_REQ_STEAL_UPDATE, vcpu);
 
+skip_load:
 	vcpu->cpu = cpu;
 }
 
@@ -631,6 +637,11 @@ void kvm_arch_vcpu_put(struct kvm_vcpu *vcpu)
 	struct kvm_vcpu_csr *csr = &vcpu->arch.guest_csr;
 
 	vcpu->cpu = -1;
+
+	if (is_cove_vcpu(vcpu)) {
+		kvm_riscv_cove_vcpu_put(vcpu);
+		return;
+	}
 
 	kvm_riscv_vcpu_aia_put(vcpu);
 

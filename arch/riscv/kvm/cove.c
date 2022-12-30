@@ -139,12 +139,20 @@ __always_inline bool kvm_riscv_cove_enabled(void)
 
 void kvm_riscv_cove_vcpu_load(struct kvm_vcpu *vcpu)
 {
-	/* TODO */
+	kvm_riscv_vcpu_timer_restore(vcpu);
 }
 
 void kvm_riscv_cove_vcpu_put(struct kvm_vcpu *vcpu)
 {
-	/* TODO */
+	void *nsh;
+	struct kvm_vcpu_csr *csr = &vcpu->arch.guest_csr;
+
+	kvm_riscv_vcpu_timer_save(vcpu);
+	/* NACL is mandatory for CoVE */
+	nsh = nacl_shmem();
+
+	/* Only VSIE needs to be read to manage the interrupt stuff */
+	csr->vsie = nacl_csr_read(nsh, CSR_VSIE);
 }
 
 int kvm_riscv_cove_vcpu_sbi_ecall(struct kvm_vcpu *vcpu, struct kvm_run *run)
