@@ -218,6 +218,15 @@ int kvm_riscv_vcpu_exit(struct kvm_vcpu *vcpu, struct kvm_run *run,
 		else if (vcpu->arch.guest_context.hstatus & HSTATUS_SPV)
 			ret = kvm_riscv_vcpu_sbi_ecall(vcpu, run);
 		break;
+	case EXC_CUSTOM_KVM_COVE_RUN_FAIL:
+		if (likely(is_cove_vcpu(vcpu))) {
+			ret = -EACCES;
+			run->fail_entry.hardware_entry_failure_reason =
+				KVM_EXIT_FAIL_ENTRY_COVE_RUN_VCPU;
+			run->fail_entry.cpu = vcpu->cpu;
+			run->exit_reason = KVM_EXIT_FAIL_ENTRY;
+		}
+		break;
 	default:
 		break;
 	}
@@ -225,6 +234,7 @@ int kvm_riscv_vcpu_exit(struct kvm_vcpu *vcpu, struct kvm_run *run,
 	/* Print details in-case of error */
 	if (ret < 0) {
 		kvm_err("VCPU exit error %d\n", ret);
+		//TODO: These values are bogus/stale for a TVM. Improve it
 		kvm_err("SEPC=0x%lx SSTATUS=0x%lx HSTATUS=0x%lx\n",
 			vcpu->arch.guest_context.sepc,
 			vcpu->arch.guest_context.sstatus,

@@ -275,9 +275,36 @@ free_tpage:
 	return rc;
 }
 
-void kvm_riscv_cove_vcpu_switchto(struct kvm_vcpu *vcpu, struct kvm_cpu_trap *trap)
+void noinstr kvm_riscv_cove_vcpu_switchto(struct kvm_vcpu *vcpu, struct kvm_cpu_trap *trap)
 {
-	/* TODO */
+	int rc;
+	struct kvm *kvm = vcpu->kvm;
+	struct kvm_cove_tvm_context *tvmc;
+	struct kvm_cpu_context *cntx = &vcpu->arch.guest_context;
+	void *nshmem;
+
+	if (!kvm->arch.tvmc)
+		return;
+
+	tvmc = kvm->arch.tvmc;
+
+	nshmem = nacl_shmem();
+	/* Invoke finalize to mark TVM is ready run for the first time */
+	if (unlikely(!tvmc->finalized_done)) {
+
+		rc = sbi_covh_tsm_finalize_tvm(tvmc->tvm_guest_id, cntx->sepc, cntx->a1);
+		if (rc) {
+			kvm_err("TVM Finalized failed with %d\n", rc);
+			return;
+		}
+		tvmc->finalized_done = true;
+	}
+
+	rc = sbi_covh_run_tvm_vcpu(tvmc->tvm_guest_id, vcpu->vcpu_idx);
+	if (rc) {
+		trap->scause = EXC_CUSTOM_KVM_COVE_RUN_FAIL;
+		return;
+	}
 }
 
 void kvm_riscv_cove_vcpu_destroy(struct kvm_vcpu *vcpu)

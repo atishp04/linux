@@ -1042,6 +1042,11 @@ void kvm_arch_vcpu_put(struct kvm_vcpu *vcpu)
 	kvm_riscv_vcpu_timer_save(vcpu);
 
 	if (kvm_riscv_nacl_available()) {
+		/**
+		 * For TVMs, we don't need a separate case as TSM only updates
+		 * the required CSRs during the world switch. All other CSR
+		 * value should be zeroed out by TSM anyways.
+		 */
 		nshmem = nacl_shmem();
 		csr->vsstatus = nacl_shmem_csr_read(nshmem, CSR_VSSTATUS);
 		csr->vsie = nacl_shmem_csr_read(nshmem, CSR_VSIE);
@@ -1190,6 +1195,12 @@ static void noinstr kvm_riscv_vcpu_enter_exit(struct kvm_vcpu *vcpu,
 		} else {
 			gcntx->hstatus = csr_swap(CSR_HSTATUS, hcntx->hstatus);
 		}
+
+		trap->htval = nacl_shmem_csr_read(nshmem, CSR_HTVAL);
+		trap->htinst = nacl_shmem_csr_read(nshmem, CSR_HTINST);
+	} else if (is_cove_vcpu(vcpu)) {
+		nshmem = nacl_shmem();
+		kvm_riscv_cove_vcpu_switchto(vcpu, trap);
 
 		trap->htval = nacl_shmem_csr_read(nshmem, CSR_HTVAL);
 		trap->htinst = nacl_shmem_csr_read(nshmem, CSR_HTINST);
