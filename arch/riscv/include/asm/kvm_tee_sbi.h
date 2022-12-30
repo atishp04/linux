@@ -16,6 +16,21 @@
 #include <linux/kvm_host.h>
 #include <asm/csr.h>
 #include <asm/sbi.h>
+#include <asm/asm-offsets.h>
+
+/**
+ * TEE SBI extensions defines the NACL scratch memory.
+ * uint64_t gprs[32]
+ * uint64_t reserved[224]
+ */
+
+#define get_scratch_gpr_offset(goffset) (goffset - KVM_ARCH_GUEST_ZERO)
+
+#define nacl_shmem_gpr_write_tee(__s, __g, __o) \
+	nacl_shmem_scratch_write_long(__s, get_scratch_gpr_offset(__g), __o)
+
+#define nacl_shmem_gpr_read_tee(__s, __g) \
+	nacl_shmem_scratch_read_long(__s, get_scratch_gpr_offset(__g))
 
 int sbi_teeh_tsm_get_info(struct sbi_tee_tsm_info *tinfo_addr);
 int sbi_teeh_tvm_initiate_fence(unsigned long tvmid);
