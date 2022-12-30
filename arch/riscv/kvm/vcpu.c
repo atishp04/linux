@@ -815,6 +815,7 @@ void kvm_riscv_vcpu_sync_interrupts(struct kvm_vcpu *vcpu)
 	/* Read current HVIP CSRs */
 	csr->vsie = nacl_csr_read(CSR_VSIE);
 
+	/* TODO: HVIP is not updated in Salus. So expect it to be zero */
 	/* Sync-up HVIP.VSSIP bit changes does by Guest */
 	hvip = nacl_csr_read(CSR_HVIP);
 	if ((csr->hvip ^ hvip) & (1UL << IRQ_VS_SOFT)) {
@@ -1273,8 +1274,9 @@ int kvm_arch_vcpu_ioctl_run(struct kvm_vcpu *vcpu)
 		 */
 		kvm_riscv_vcpu_flush_interrupts(vcpu);
 
-		/* Update HVIP CSR for current CPU */
-		kvm_riscv_update_hvip(vcpu);
+		/* Update HVIP CSR for current CPU only for non TVMs */
+		if (!is_tee_vcpu(vcpu))
+			kvm_riscv_update_hvip(vcpu);
 
 		if (ret <= 0 ||
 		    kvm_riscv_gstage_vmid_ver_changed(&vcpu->kvm->arch.vmid) ||
@@ -1301,7 +1303,6 @@ int kvm_arch_vcpu_ioctl_run(struct kvm_vcpu *vcpu)
 		vcpu->mode = OUTSIDE_GUEST_MODE;
 		vcpu->stat.exits++;
 
-		/* Syncup interrupts state with HW */
 		kvm_riscv_vcpu_sync_interrupts(vcpu);
 
 		preempt_disable();
