@@ -972,6 +972,11 @@ void kvm_arch_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
 	u64 henvcfg = kvm_riscv_vcpu_get_henvcfg(vcpu->arch.isa);
 	struct kvm_vcpu_csr *csr = &vcpu->arch.guest_csr;
 
+	if (is_cove_vcpu(vcpu)) {
+		kvm_riscv_cove_vcpu_load(vcpu);
+		goto skip_load;
+	}
+
 	if (kvm_riscv_nacl_sync_csr_available()) {
 		nshmem = nacl_shmem();
 		nacl_shmem_csr_write(nshmem, CSR_VSSTATUS, csr->vsstatus);
@@ -1010,9 +1015,9 @@ void kvm_arch_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
 	kvm_riscv_vcpu_host_fp_save(&vcpu->arch.host_context);
 	kvm_riscv_vcpu_guest_fp_restore(&vcpu->arch.guest_context,
 					vcpu->arch.isa);
-
 	kvm_riscv_vcpu_aia_load(vcpu, cpu);
 
+skip_load:
 	vcpu->cpu = cpu;
 }
 
@@ -1022,6 +1027,11 @@ void kvm_arch_vcpu_put(struct kvm_vcpu *vcpu)
 	struct kvm_vcpu_csr *csr = &vcpu->arch.guest_csr;
 
 	vcpu->cpu = -1;
+
+	if (is_cove_vcpu(vcpu)) {
+		kvm_riscv_cove_vcpu_put(vcpu);
+		return;
+	}
 
 	kvm_riscv_vcpu_aia_put(vcpu);
 
