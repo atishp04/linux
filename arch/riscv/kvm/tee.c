@@ -182,10 +182,41 @@ free_tpage:
 	return rc;
 }
 
-
-void kvm_riscv_tee_vcpu_switchto(struct kvm_vcpu *vcpu, struct kvm_cpu_trap *trap)
+void noinstr kvm_riscv_tee_vcpu_switchto(struct kvm_vcpu *vcpu, struct kvm_cpu_trap *trap)
 {
-	/* TODO */
+	int rc;
+	struct kvm *kvm = vcpu->kvm;
+	struct kvm_tee_tvm_context *tvmc;
+	struct kvm_cpu_context *cntx = &vcpu->arch.guest_context;
+	void *nshmem;
+	struct kvm_tee_tvm_vcpu_context *tvcpu = vcpu->arch.tc;
+
+	if (!kvm->arch.tvmc)
+		return;
+
+	tvmc = kvm->arch.tvmc;
+
+	nshmem = nacl_shmem();
+	/* Invoke finalize to mark TVM is ready run for the first time */
+	if (unlikely(!tvmc->finalized_done)) {
+
+		rc = sbi_teeh_tsm_finalize_tvm(tvmc->tvm_guest_id, cntx->sepc, cntx->a1);
+		if (rc) {
+			kvm_err("TVM Finalized failed with %d\n", rc);
+			return;
+		}
+		tvmc->finalized_done = true;
+	}
+
+	rc = sbi_teeh_run_tvm_vcpu(tvmc->tvm_guest_id, vcpu->vcpu_idx);
+	if (rc) {
+		//TODO: Should we try return to the user space or panic ?
+		kvm_err("TVM run failed vcpu id %d with rc %d\n", vcpu->vcpu_idx, rc);
+		return;
+	}
+
+	trap->htinst = nacl_shmem_csr_read(nshmem, CSR_HTINST);
+	trap->htval = nacl_shmem_csr_read(nshmem, CSR_HTVAL);
 }
 
 void kvm_riscv_tee_vcpu_destroy(struct kvm_vcpu *vcpu)

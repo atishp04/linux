@@ -967,6 +967,10 @@ void kvm_arch_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
 
 	if (kvm_riscv_nacl_available()) {
 		nshmem = nacl_shmem();
+		/**
+		 * For TVMs, we don't need a separate case as TSM shouldn't care
+		 * about any CSR update from the host anyways.
+		 */
 		nacl_shmem_csr_write(nshmem, CSR_VSSTATUS, csr->vsstatus);
 		nacl_shmem_csr_write(nshmem, CSR_VSIE, csr->vsie);
 		nacl_shmem_csr_write(nshmem, CSR_VSTVEC, csr->vstvec);
@@ -1030,6 +1034,11 @@ void kvm_arch_vcpu_put(struct kvm_vcpu *vcpu)
 	kvm_riscv_vcpu_timer_save(vcpu);
 
 	if (kvm_riscv_nacl_available()) {
+		/**
+		 * For TVMs, we don't need a separate case as TSM only updates
+		 * the required CSRs during the world switch. All other CSR
+		 * value should be zeroed out by TSM anyways.
+		 */
 		nshmem = nacl_shmem();
 		csr->vsstatus = nacl_shmem_csr_read(nshmem, CSR_VSSTATUS);
 		csr->vsie = nacl_shmem_csr_read(nshmem, CSR_VSIE);
@@ -1109,6 +1118,25 @@ static void kvm_riscv_update_hvip(struct kvm_vcpu *vcpu)
 	kvm_riscv_vcpu_aia_update_hvip(vcpu);
 }
 
+static void noinstr kvm_riscv_nacl_vcpu_switchto(struct kvm_vcpu *vcpu,
+						struct kvm_cpu_trap *trap)
+{
+	struct kvm_cpu_context *gcntx = &vcpu->arch.guest_context;
+	struct kvm_cpu_context *hcntx = &vcpu->arch.host_context;
+	void *nshmem = nacl_shmem();
+
+	hcntx->hstatus = nacl_shmem_csr_swap(nshmem, CSR_HSTATUS, gcntx->hstatus);
+
+	nacl_shmem_scratch_write_longs(nshmem, SBI_NACL_SRET_SCRATCH_X(1), &gcntx->ra,
+				       SBI_NACL_SRET_SCRATCH_X_LAST);
+	nacl_shmem_scratch_write_long(nshmem, SBI_NACL_SRET_SCRATCH_HSTATUS, hcntx->hstatus);
+
+	__kvm_riscv_nacl_switch_to(&vcpu->arch, SBI_EXT_NACL, SBI_EXT_NACL_SYNC_SRET,
+				  SBI_NACL_SRET_FLAG_VMEXIT_HSTATUS);
+
+	gcntx->hstatus = nacl_shmem_scratch_read_long(nshmem, SBI_NACL_SRET_SCRATCH_HSTATUS);
+}
+
 /*
  * Actually run the vCPU, entering an RCU extended quiescent state (EQS) while
  * the vCPU is running.
@@ -1135,23 +1163,15 @@ static void noinstr kvm_riscv_vcpu_enter_exit(struct kvm_vcpu *vcpu,
 
 	if (kvm_riscv_nacl_available()) {
 		nshmem = nacl_shmem();
-		hcntx->hstatus = nacl_shmem_csr_swap(nshmem,
-						CSR_HSTATUS, gcntx->hstatus);
 
-		nacl_shmem_scratch_write_longs(nshmem,
-					       SBI_NACL_SRET_SCRATCH_X(1),
-					       &gcntx->ra,
-					       SBI_NACL_SRET_SCRATCH_X_LAST);
-		nacl_shmem_scratch_write_long(nshmem,
-					      SBI_NACL_SRET_SCRATCH_HSTATUS,
-					      hcntx->hstatus);
+		/* We don't save restore all registers for TVM */
+		if (is_tee_vcpu(vcpu)) {
+			kvm_riscv_tee_vcpu_switchto(vcpu, trap);
+		} else {
+			kvm_riscv_nacl_vcpu_switchto(vcpu, trap);
+		}
 
-		__kvm_riscv_nacl_switch_to(&vcpu->arch, SBI_EXT_NACL,
-					   SBI_EXT_NACL_SYNC_SRET,
-					   SBI_NACL_SRET_FLAG_VMEXIT_HSTATUS);
-
-		gcntx->hstatus = nacl_shmem_scratch_read_long(nshmem,
-					SBI_NACL_SRET_SCRATCH_HSTATUS);
+		/* Only HTVAL/HTINST is udpated in shared memory by TSM */
 		trap->htval = nacl_shmem_csr_read(nshmem, CSR_HTVAL);
 		trap->htinst = nacl_shmem_csr_read(nshmem, CSR_HTINST);
 	} else {
