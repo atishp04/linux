@@ -1000,10 +1000,12 @@ void kvm_arch_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
 
 	kvm_riscv_vcpu_timer_restore(vcpu);
 
-	kvm_riscv_vcpu_host_fp_save(&vcpu->arch.host_context);
-	kvm_riscv_vcpu_guest_fp_restore(&vcpu->arch.guest_context,
-					vcpu->arch.isa);
-
+	/* TVM doesn't support fp save/restore yet */
+	if (!unlikely(is_tee_vcpu(vcpu))) {
+		kvm_riscv_vcpu_host_fp_save(&vcpu->arch.host_context);
+		kvm_riscv_vcpu_guest_fp_restore(&vcpu->arch.guest_context,
+						vcpu->arch.isa);
+	}
 	kvm_riscv_vcpu_aia_load(vcpu, cpu);
 
 	vcpu->cpu = cpu;
@@ -1018,9 +1020,12 @@ void kvm_arch_vcpu_put(struct kvm_vcpu *vcpu)
 
 	kvm_riscv_vcpu_aia_put(vcpu);
 
-	kvm_riscv_vcpu_guest_fp_save(&vcpu->arch.guest_context,
+	/* TVM doesn't support fp save/restore yet */
+	if (!unlikely(is_tee_vcpu(vcpu))) {
+		kvm_riscv_vcpu_guest_fp_save(&vcpu->arch.guest_context,
 				     vcpu->arch.isa);
-	kvm_riscv_vcpu_host_fp_restore(&vcpu->arch.host_context);
+		kvm_riscv_vcpu_host_fp_restore(&vcpu->arch.host_context);
+	}
 
 	kvm_riscv_vcpu_timer_save(vcpu);
 
