@@ -32,6 +32,7 @@
 #define nacl_shmem_gpr_read_cove(__s, __g) \
 	nacl_shmem_scratch_read_long(__s, get_scratch_gpr_offset(__g))
 
+/* Functions related to CoVE Host Interface (COVH) Extension */
 int sbi_covh_tsm_get_info(struct sbi_cove_tsm_info *tinfo_addr);
 int sbi_covh_tvm_initiate_fence(unsigned long tvmid);
 int sbi_covh_tsm_initiate_fence(void);
@@ -57,5 +58,24 @@ int sbi_covh_create_tvm_vcpu(unsigned long tvmid, unsigned long tvm_vcpuid,
 			     unsigned long vpus_page_addr);
 
 int sbi_covh_run_tvm_vcpu(unsigned long tvmid, unsigned long tvm_vcpuid);
+
+/* Functions related to CoVE Interrupt Management(COVI) Extension */
+int sbi_covi_tvm_aia_init(unsigned long tvm_gid, struct sbi_cove_tvm_aia_params *tvm_aia_params);
+int sbi_covi_set_vcpu_imsic_addr(unsigned long tvm_gid, unsigned long vcpu_id,
+				 unsigned long imsic_addr);
+int sbi_covi_convert_imsic(unsigned long imsic_addr);
+int sbi_covi_reclaim_imsic(unsigned long imsic_addr);
+int sbi_covi_bind_vcpu_imsic(unsigned long tvm_gid, unsigned long vcpu_id,
+			     unsigned long imsic_mask);
+int sbi_covi_unbind_vcpu_imsic_begin(unsigned long tvm_gid, unsigned long vcpu_id);
+int sbi_covi_unbind_vcpu_imsic_end(unsigned long tvm_gid, unsigned long vcpu_id);
+int sbi_covi_inject_external_interrupt(unsigned long tvm_gid, unsigned long vcpu_id,
+					unsigned long interrupt_id);
+int sbi_covi_rebind_vcpu_imsic_begin(unsigned long tvm_gid, unsigned long vcpu_id,
+				      unsigned long imsic_mask);
+int sbi_covi_rebind_vcpu_imsic_clone(unsigned long tvm_gid, unsigned long vcpu_id);
+int sbi_covi_rebind_vcpu_imsic_end(unsigned long tvm_gid, unsigned long vcpu_id);
+
+
 
 #endif
