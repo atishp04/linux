@@ -16,6 +16,170 @@
 #include <asm/kvm_tee_sbi.h>
 #include <asm/sbi.h>
 
+int sbi_teei_tvm_aia_init(unsigned long tvm_gid,
+			  struct sbi_tee_tvm_aia_params *tvm_aia_params)
+{
+	struct sbiret ret;
+
+	unsigned long pa = __pa(tvm_aia_params);
+
+	ret = sbi_ecall(SBI_EXT_TEEI, SBI_EXT_TEEI_TVM_AIA_INIT, tvm_gid, pa,
+			sizeof(*tvm_aia_params), 0, 0, 0);
+	if (ret.error)
+		return sbi_err_map_linux_errno(ret.error);
+
+	return 0;
+}
+
+int sbi_teei_set_vcpu_imsic_addr(unsigned long tvm_gid, unsigned long vcpu_id,
+				 unsigned long imsic_addr)
+{
+	struct sbiret ret;
+
+	ret = sbi_ecall(SBI_EXT_TEEI, SBI_EXT_TEEI_TVM_CPU_SET_IMSIC_ADDR,
+			tvm_gid, vcpu_id, imsic_addr, 0, 0, 0);
+	if (ret.error)
+		return sbi_err_map_linux_errno(ret.error);
+
+	return 0;
+}
+
+/*
+ * Converts the guest interrupt file at `imsic_addr` for use with a TVM.
+ * The guest interrupt file must not be used by the caller until reclaim.
+ */
+int sbi_teei_convert_imsic(unsigned long imsic_addr)
+{
+	struct sbiret ret;
+
+	ret = sbi_ecall(SBI_EXT_TEEI, SBI_EXT_TEEI_TVM_CONVERT_IMSIC,
+			imsic_addr, 0, 0, 0, 0, 0);
+	if (ret.error)
+		return sbi_err_map_linux_errno(ret.error);
+
+	return 0;
+}
+
+int sbi_teei_reclaim_imsic(unsigned long imsic_addr)
+{
+	struct sbiret ret;
+
+	ret = sbi_ecall(SBI_EXT_TEEI, SBI_EXT_TEEI_TVM_RECLAIM_IMSIC,
+			imsic_addr, 0, 0, 0, 0, 0);
+	if (ret.error)
+		return sbi_err_map_linux_errno(ret.error);
+
+	return 0;
+}
+
+/*
+ * Binds a vCPU to this physical CPU and the specified set of confidential guest
+ * interrupt files.
+ */
+int sbi_teei_bind_vcpu_imsic(unsigned long tvm_gid, unsigned long vcpu_id,
+			     unsigned long imsic_mask)
+{
+	struct sbiret ret;
+
+	ret = sbi_ecall(SBI_EXT_TEEI, SBI_EXT_TEEI_TVM_CPU_BIND_IMSIC, tvm_gid,
+			vcpu_id, imsic_mask, 0, 0, 0);
+	if (ret.error)
+		return sbi_err_map_linux_errno(ret.error);
+
+	return 0;
+}
+
+/*
+ * Begins the unbind process for the specified vCPU from this physical CPU and its guest
+ * interrupt files. The host must complete a TLB invalidation sequence for the TVM before
+ * completing the unbind with `unbind_vcpu_imsic_end()`.
+ */
+int sbi_teei_unbind_vcpu_imsic_begin(unsigned long tvm_gid,
+				     unsigned long vcpu_id)
+{
+	struct sbiret ret;
+
+	ret = sbi_ecall(SBI_EXT_TEEI, SBI_EXT_TEEI_TVM_CPU_UNBIND_IMSIC_BEGIN,
+			tvm_gid, vcpu_id, 0, 0, 0, 0);
+	if (ret.error)
+		return sbi_err_map_linux_errno(ret.error);
+
+	return 0;
+}
+
+/*
+ * Completes the unbind process for the specified vCPU from this physical CPU and its guest
+ * interrupt files.
+ */
+int sbi_teei_unbind_vcpu_imsic_end(unsigned long tvm_gid, unsigned long vcpu_id)
+{
+	struct sbiret ret;
+
+	ret = sbi_ecall(SBI_EXT_TEEI, SBI_EXT_TEEI_TVM_CPU_UNBIND_IMSIC_END,
+			tvm_gid, vcpu_id, 0, 0, 0, 0);
+	if (ret.error)
+		return sbi_err_map_linux_errno(ret.error);
+
+	return 0;
+}
+
+/*
+ * Injects an external interrupt into the specified vCPU. The interrupt ID must
+ * have been allowed with `allow_external_interrupt()` by the guest.
+ */
+int sbi_teei_inject_external_interrupt(unsigned long tvm_gid,
+				       unsigned long vcpu_id,
+				       unsigned long interrupt_id)
+{
+	struct sbiret ret;
+
+	ret = sbi_ecall(SBI_EXT_TEEI, SBI_EXT_TEEI_TVM_CPU_INJECT_EXT_INTERRUPT,
+			tvm_gid, vcpu_id, interrupt_id, 0, 0, 0);
+	if (ret.error)
+		return sbi_err_map_linux_errno(ret.error);
+
+	return 0;
+}
+
+int sbi_teei_rebind_vcpu_imsic_begin(unsigned long tvm_gid,
+				     unsigned long vcpu_id,
+				     unsigned long imsic_mask)
+{
+	struct sbiret ret;
+
+	ret = sbi_ecall(SBI_EXT_TEEI, SBI_EXT_TEEI_TVM_REBIND_IMSIC_BEGIN,
+			tvm_gid, vcpu_id, imsic_mask, 0, 0, 0);
+	if (ret.error)
+		return sbi_err_map_linux_errno(ret.error);
+
+	return 0;
+}
+
+int sbi_teei_rebind_vcpu_imsic_clone(unsigned long tvm_gid,
+				     unsigned long vcpu_id)
+{
+	struct sbiret ret;
+
+	ret = sbi_ecall(SBI_EXT_TEEI, SBI_EXT_TEEI_TVM_REBIND_IMSIC_CLONE,
+			tvm_gid, vcpu_id, 0, 0, 0, 0);
+	if (ret.error)
+		return sbi_err_map_linux_errno(ret.error);
+
+	return 0;
+}
+
+int sbi_teei_rebind_vcpu_imsic_end(unsigned long tvm_gid, unsigned long vcpu_id)
+{
+	struct sbiret ret;
+
+	ret = sbi_ecall(SBI_EXT_TEEI, SBI_EXT_TEEI_TVM_REBIND_IMSIC_END,
+			tvm_gid, vcpu_id, 0, 0, 0, 0);
+	if (ret.error)
+		return sbi_err_map_linux_errno(ret.error);
+
+	return 0;
+}
+
 int sbi_teeh_tsm_get_info(struct sbi_tee_tsm_info *tinfo_addr)
 {
 	struct sbiret ret;
