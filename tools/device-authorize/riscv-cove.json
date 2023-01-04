@@ -1,0 +1,61 @@
+[
+	{
+		"major_ver": 0,
+		"minor_ver": 1,
+		"type": 0
+	},
+	{
+		"bus": "virtio"
+	},
+	{
+		"bus": "platform",
+		"devices": [
+			{
+				"name": "30000000.pci"
+			}
+		]
+	},
+	{
+		"bus": "pci",
+		"devices": [
+			{
+				"vendor": "0x1af4",
+				"device": "0x1000"
+			},
+			{
+				"vendor": "0x1af4",
+				"device": "0x1001"
+			},
+			{
+				"vendor": "0x1af4",
+				"device": "0x1003"
+			},
+			{
+				"vendor": "0x1af4",
+				"device": "0x1009"
+			},
+			{
+				"vendor": "0x1af4",
+				"device": "0x1041"
+			},
+			{
+				"vendor": "0x1af4",
+				"device": "0x1042"
+			},
+			{
+				"vendor": "0x1af4",
+				"device": "0x1043"
+			},
+			{
+				"vendor": "0x1af4",
+				"device": "0x1049"
+			},
+			{
+				"vendor": "0x1af4",
+				"device": "0x1053"
+			}
+
+
+		]
+	}
+]
