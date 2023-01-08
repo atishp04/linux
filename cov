@@ -1,0 +1,72 @@
+This patch series introduces the confidential computing support for RISC-V. This is a very early WIP work.
+We want to share this with the community to get any feedback on overall architecture and direction.
+Any other feedback is welcome too.
+
+
+The detailed AP-TEE architecture document can be found here:
+
+The various related SBI extensions can be found here.
+
+
+The TSM project is written in rust and can be found here:
+
+
+Nomenclature:
+TEEH - TEE host side interface
+TEEG - TEE Guest side interface
+TEEI - TEE Interrupt related extension
+NACL - Nested acceleration extension
+TSM  - Trusted security module
+TVM  - Trusted VM
+
+** The interrupt related extension had both host and guest side requirement. Thus,
+it was kept as a separate extension for now.
+
+
+These specifications are also in draft stages and are subjected to change from the
+feedback from the community.
+
+
+AP-TEE Architecture:
+====================
+
+
+Basic TVM creation/destroy sequence:
+====================================
+
+
+TVM Interrupt management:
+=========================
+
+
+
+TVM VCPU migration:
+===================
+
+
+Shared memory management from TVM:
+=================================
+
+
+MMIO region management from TVM:
+================================
+
+
+As this is a very early work, the todo list is quite long :)
+
+1. Support fd based private memory interface proposed in
+   https://lkml.org/lkml/2022/1/18/395
+2. Finalize the ioremap hardening approach (if this is the correct direction)
+3. SBI DBCN console support
+4. HGATP/VMID update
+5. IOMMU integration
+6. Make virtio-net working
+7. TEE I/O
+8. Secure interrupts
+9. Native Debugging support in TVM
+10. Perf support in TVM
+11. kvm-unit-tests support
+12. Other VMM support (qemu, rust-vmm)
+13. TVM migration
+14. Huge page support
+15. Running TSM and KVM as peers (i.e. KVM runs in HS mode rather than VS)
