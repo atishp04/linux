@@ -105,6 +105,173 @@ static int tee_convert_pages(struct kvm_riscv_tee_page_range *pgr, bool fence)
 	return rc;
 }
 
+int kvm_riscv_tee_vcpu_imsic_addr(struct kvm_vcpu *vcpu)
+{
+	struct kvm_tee_tvm_context *tvmc;
+	struct kvm *kvm = vcpu->kvm;
+	struct kvm_vcpu_aia *vaia = &vcpu->arch.aia;
+	int ret;
+
+	if (!kvm->arch.tvmc)
+		return -EINVAL;
+
+	tvmc = kvm->arch.tvmc;
+
+	ret = sbi_teei_set_vcpu_imsic_addr(tvmc->tvm_guest_id, vcpu->vcpu_idx, vaia->imsic_addr);
+	if (ret)
+		return -EPERM;
+
+	return 0;
+}
+
+int kvm_riscv_tee_aia_convert_imsic(struct kvm_vcpu *vcpu, phys_addr_t imsic_pa)
+{
+	struct kvm *kvm = vcpu->kvm;
+	int ret;
+
+	if (!kvm->arch.tvmc)
+		return -EINVAL;
+
+	//TODO: Check bind sanity check - imsic file must not be bound
+	ret = sbi_teei_convert_imsic(imsic_pa);
+	if (ret)
+		return -EPERM;
+
+	ret = kvm_riscv_tee_hfence();
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+int kvm_riscv_tee_aia_claim_imsic(struct kvm_vcpu *vcpu, phys_addr_t imsic_pa)
+{
+	int ret;
+	struct kvm *kvm = vcpu->kvm;
+
+	if (!kvm->arch.tvmc)
+		return -EINVAL;
+
+	//TODO: Check bind sanity check - imsic file must not be bound
+
+	ret = sbi_teei_reclaim_imsic(imsic_pa);
+	if (ret)
+		return -EPERM;
+
+	//TODO: Do we need a hfence here ?
+
+	return 0;
+}
+
+int kvm_riscv_tee_vcpu_imsic_bind(struct kvm_vcpu *vcpu, unsigned long imsic_mask)
+{
+	struct kvm_tee_tvm_context *tvmc;
+	struct kvm *kvm = vcpu->kvm;
+	int ret;
+
+	if (!kvm->arch.tvmc)
+		return -EINVAL;
+
+	tvmc = kvm->arch.tvmc;
+
+	ret = sbi_teei_bind_vcpu_imsic(tvmc->tvm_guest_id, vcpu->vcpu_idx, imsic_mask);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+int kvm_riscv_tee_vcpu_imsic_unbind(struct kvm_vcpu *vcpu)
+{
+	struct kvm_tee_tvm_context *tvmc;
+	struct kvm *kvm = vcpu->kvm;
+	int ret;
+
+	if (!kvm->arch.tvmc)
+		return -EINVAL;
+
+	tvmc = kvm->arch.tvmc;
+
+	ret = sbi_teei_unbind_vcpu_imsic_begin(tvmc->tvm_guest_id, vcpu->vcpu_idx);
+	if (ret)
+		return ret;
+
+	ret = kvm_riscv_tee_hfence();
+	if (ret)
+		return ret;
+
+	ret = sbi_teei_unbind_vcpu_imsic_end(tvmc->tvm_guest_id, vcpu->vcpu_idx);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+int kvm_riscv_tee_vcpu_inject_interrupt(struct kvm_vcpu *vcpu, unsigned long iid)
+{
+	struct kvm_tee_tvm_context *tvmc;
+	struct kvm *kvm = vcpu->kvm;
+	int ret;
+
+	if (!kvm->arch.tvmc)
+		return -EINVAL;
+
+	tvmc = kvm->arch.tvmc;
+
+	ret = sbi_teei_inject_external_interrupt(tvmc->tvm_guest_id, vcpu->vcpu_idx, iid);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+int kvm_riscv_tee_aia_init(struct kvm *kvm)
+{
+	struct kvm_aia *aia = &kvm->arch.aia;
+	struct sbi_tee_tvm_aia_params *tvm_aia;
+	struct kvm_vcpu *vcpu;
+	struct kvm_tee_tvm_context *tvmc;
+	int ret;
+
+	if (!kvm->arch.tvmc)
+		return -EINVAL;
+
+	tvmc = kvm->arch.tvmc;
+
+	/* Sanity Check */
+	if (aia->aplic_addr != KVM_RISCV_AIA_UNDEF_ADDR)
+		return -EINVAL;
+
+	/* TVMs must have a physical guest interrut file */
+	if (aia->mode != KVM_DEV_RISCV_AIA_MODE_HWACCEL)
+		return -ENODEV;
+
+	tvm_aia = kzalloc(sizeof(*tvm_aia), GFP_KERNEL);
+	if (!tvm_aia)
+		return -ENOMEM;
+
+	 /*TODO: KVM only knows the IMSIC address of vcpus. Can the base address
+	 * be different than that ?
+	 */
+	/* Address of the IMSIC group ID, hart ID & guest ID of 0 */
+	vcpu = kvm_get_vcpu_by_id(kvm, 0);
+	tvm_aia->imsic_base_addr = vcpu->arch.aia.imsic_addr;
+
+	tvm_aia->group_index_bits = aia->nr_group_bits;
+	tvm_aia->group_index_shift = aia->nr_group_shift;
+	tvm_aia->hart_index_bits = aia->nr_hart_bits;
+	tvm_aia->guest_index_bits = aia->nr_guest_bits;
+	/* Nested TVMs are not supported yet */
+	tvm_aia->guests_per_hart = 0;
+
+
+	ret = sbi_teei_tvm_aia_init(tvmc->tvm_guest_id, tvm_aia);
+	if (ret)
+		kvm_err("TVM AIA init failed with rc %d\n", ret);
+
+	return ret;
+}
+
 void kvm_riscv_tee_vcpu_load(struct kvm_vcpu *vcpu)
 {
 	/* TODO */
