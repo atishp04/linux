@@ -391,10 +391,11 @@ int kvm_riscv_vcpu_aia_rmw_ireg(struct kvm_vcpu *vcpu, unsigned int csr_num,
 int kvm_riscv_aia_alloc_hgei(int cpu, struct kvm_vcpu *owner,
 			     void __iomem **hgei_va, phys_addr_t *hgei_pa)
 {
-	int ret = -ENOENT;
+	int ret = -ENOENT, rc;
 	unsigned long flags;
 	const struct imsic_local_config *lc;
 	struct aia_hgei_control *hgctrl = per_cpu_ptr(&aia_hgei, cpu);
+	phys_addr_t imsic_hgei_pa;
 
 	if (!kvm_riscv_aia_available())
 		return -ENOSYS;
@@ -415,10 +416,20 @@ int kvm_riscv_aia_alloc_hgei(int cpu, struct kvm_vcpu *owner,
 	if (lc && ret > 0) {
 		if (hgei_va)
 			*hgei_va = lc->msi_va + (ret * IMSIC_MMIO_PAGE_SZ);
-		if (hgei_pa)
-			*hgei_pa = lc->msi_pa + (ret * IMSIC_MMIO_PAGE_SZ);
+		imsic_hgei_pa = lc->msi_pa + (ret * IMSIC_MMIO_PAGE_SZ);
 	}
 
+	if (hgei_pa)
+		*hgei_pa = imsic_hgei_pa;
+
+	/* Convert the address to TEE memory for confidential access */
+	if (is_tee_vcpu(owner)) {
+		pr_err("%s: Converting the imsic hgei pa %lx vcpu %d pcpu %d\n",
+			__func__, (unsigned long)imsic_hgei_pa, owner->vcpu_idx, smp_processor_id());
+		rc = kvm_riscv_tee_aia_convert_imsic(owner, imsic_hgei_pa);
+		if (rc)
+			return rc;
+	}
 	return ret;
 }
 
@@ -426,6 +437,10 @@ int kvm_riscv_aia_free_hgei(int cpu, int hgei)
 {
 	unsigned long flags;
 	struct aia_hgei_control *hgctrl = per_cpu_ptr(&aia_hgei, cpu);
+	phys_addr_t imsic_hgei_pa = 0;
+	const struct imsic_local_config *lc;
+	struct kvm_vcpu *vcpu;
+	int ret;
 
 	if (!kvm_riscv_aia_available() || !hgctrl)
 		return 0;
@@ -434,12 +449,31 @@ int kvm_riscv_aia_free_hgei(int cpu, int hgei)
 
 	if (0 < hgei && hgei <= kvm_riscv_aia_nr_hgei) {
 		if (!(hgctrl->free_bitmap & BIT(hgei))) {
+			vcpu = hgctrl->owners[hgei];
+			if (is_tee_vcpu(vcpu)) {
+				/* TODO: Track a per physical cpu converted status to invoke claim */
+				lc = imsic_get_local_config(cpu);
+				imsic_hgei_pa = lc->msi_pa + (hgei * IMSIC_MMIO_PAGE_SZ);
+			}
 			hgctrl->free_bitmap |= BIT(hgei);
 			hgctrl->owners[hgei] = NULL;
 		}
 	}
 
 	raw_spin_unlock_irqrestore(&hgctrl->lock, flags);
+
+	/* The claim process can not be called from spin lock context as
+	 * it requires to send fence on local cpus as well.
+	 * Do we need a separate lock here ?
+	 */
+	if (imsic_hgei_pa) {
+		ret = kvm_riscv_tee_aia_claim_imsic(vcpu, imsic_hgei_pa);
+		if (ret) {
+			kvm_err("Reclaim of imsic pa [%llx] failed for vcpu %d pcpu %d ret %d\n",
+			 imsic_hgei_pa, vcpu->vcpu_idx, smp_processor_id(), ret);
+			return ret;
+		}
+	}
 
 	return 0;
 }

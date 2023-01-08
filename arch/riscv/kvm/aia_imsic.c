@@ -15,6 +15,7 @@
 #include <linux/swab.h>
 #include <kvm/iodev.h>
 #include <asm/csr.h>
+#include <asm/kvm_tee.h>
 
 #define IMSIC_MAX_EIX	(IMSIC_MAX_ID / BITS_PER_TYPE(u64))
 
@@ -667,8 +668,9 @@ void kvm_riscv_vcpu_aia_imsic_release(struct kvm_vcpu *vcpu)
 {
 	unsigned long flags;
 	struct imsic_mrif tmrif;
-	int old_vsfile_hgei, old_vsfile_cpu;
+	int old_vsfile_hgei, old_vsfile_cpu, ret;
 	struct imsic *imsic = vcpu->arch.aia.imsic_state;
+	struct kvm_tee_tvm_vcpu_context *tvcpu; 
 
 	/* Read and clear IMSIC VS-file details */
 	write_lock_irqsave(&imsic->vsfile_lock, flags);
@@ -689,26 +691,36 @@ void kvm_riscv_vcpu_aia_imsic_release(struct kvm_vcpu *vcpu)
 	 * producers.
 	 */
 
-	/* Purge the G-stage mapping */
-	kvm_riscv_gstage_iounmap(vcpu->kvm,
-				 vcpu->arch.aia.imsic_addr,
-				 IMSIC_MMIO_PAGE_SZ);
+	if (is_tee_vcpu(vcpu)) {
+		tvcpu = vcpu->arch.tc;
+		if (tvcpu->imsic.bound) {
+			ret = kvm_riscv_tee_vcpu_imsic_unbind(vcpu);
+			if (ret)
+				kvm_err("imsic unbind failed for vcpu %d\n", vcpu->vcpu_idx);
+		}
+	} else {
 
-	/* TODO: Purge the IOMMU mapping ??? */
+		/* Purge the G-stage mapping */
+		kvm_riscv_gstage_iounmap(vcpu->kvm,
+					 vcpu->arch.aia.imsic_addr,
+					 IMSIC_MMIO_PAGE_SZ);
 
-	/*
-	 * At this point, all interrupt producers have been re-directed
-	 * to somewhere else so we move register state from the old IMSIC
-	 * VS-file to the IMSIC SW-file.
-	 */
+		/* TODO: Purge the IOMMU mapping ??? */
 
-	/* Read and clear register state from old IMSIC VS-file */
-	memset(&tmrif, 0, sizeof(tmrif));
-	imsic_vsfile_read(old_vsfile_hgei, old_vsfile_cpu, imsic->nr_hw_eix,
-			  true, &tmrif);
+		/*
+		 * At this point, all interrupt producers have been re-directed
+		 * to somewhere else so we move register state from the old IMSIC
+		 * VS-file to the IMSIC SW-file.
+		 */
 
-	/* Update register state in IMSIC SW-file */
-	imsic_swfile_update(vcpu, &tmrif);
+		/* Read and clear register state from old IMSIC VS-file */
+		memset(&tmrif, 0, sizeof(tmrif));
+		imsic_vsfile_read(old_vsfile_hgei, old_vsfile_cpu, imsic->nr_hw_eix,
+				  true, &tmrif);
+
+		/* Update register state in IMSIC SW-file */
+		imsic_swfile_update(vcpu, &tmrif);
+	}
 
 	/* Free-up old IMSIC VS-file */
 	kvm_riscv_aia_free_hgei(old_vsfile_cpu, old_vsfile_hgei);
@@ -762,22 +774,25 @@ int kvm_riscv_vcpu_aia_imsic_update(struct kvm_vcpu *vcpu)
 	}
 	new_vsfile_hgei = ret;
 
-	/*
-	 * At this point, all interrupt producers are still using
-	 * to the old IMSIC VS-file so we first move all interrupt
-	 * producers to the new IMSIC VS-file.
-	 */
+	/* TSM only maintains the gstage mapping. Skip vsfile updates & ioremap */
+	if (!is_tee_vcpu(vcpu)) {
+		/*
+		 * At this point, all interrupt producers are still using
+		 * to the old IMSIC VS-file so we first move all interrupt
+		 * producers to the new IMSIC VS-file.
+		 */
 
-	/* Zero-out new IMSIC VS-file */
-	imsic_vsfile_local_clear(new_vsfile_hgei, imsic->nr_hw_eix);
+		/* Zero-out new IMSIC VS-file */
+		imsic_vsfile_local_clear(new_vsfile_hgei, imsic->nr_hw_eix);
 
-	/* Update G-stage mapping for the new IMSIC VS-file */
-	ret = kvm_riscv_gstage_ioremap(kvm, vcpu->arch.aia.imsic_addr,
-				       new_vsfile_pa, IMSIC_MMIO_PAGE_SZ,
-				       true, true);
-	if (ret)
-		goto fail_free_vsfile_hgei;
+		/* Update G-stage mapping for the new IMSIC VS-file */
+		ret = kvm_riscv_gstage_ioremap(kvm, vcpu->arch.aia.imsic_addr,
+					       new_vsfile_pa, IMSIC_MMIO_PAGE_SZ,
+					       true, true);
+		if (ret)
+			goto fail_free_vsfile_hgei;
 
+	}
 	/* TODO: Update the IOMMU mapping ??? */
 
 	/* Update new IMSIC VS-file details in IMSIC context */
@@ -787,6 +802,29 @@ int kvm_riscv_vcpu_aia_imsic_update(struct kvm_vcpu *vcpu)
 	imsic->vsfile_va = new_vsfile_va;
 	imsic->vsfile_pa = new_vsfile_pa;
 	write_unlock_irqrestore(&imsic->vsfile_lock, flags);
+
+	/* Now bind the new vsfile for the TVMs */
+	if (is_tee_vcpu(vcpu) && vcpu->arch.tc) {
+		vcpu->arch.tc->imsic.vsfile_hgei = new_vsfile_hgei;
+		pr_err("%s: new bind requested for vcpu %d vsfile %d pcpu %d\n",
+			__func__, vcpu->vcpu_idx, new_vsfile_hgei, smp_processor_id());
+		if (old_vsfile_cpu >= 0 && vcpu->arch.tc->imsic.bound) {
+			ret = kvm_riscv_tee_vcpu_imsic_rebind(vcpu, old_vsfile_cpu);
+			if (ret) {
+				kvm_err("imsic rebind failed for vcpu %d ret %d\n", vcpu->vcpu_idx, ret);
+				goto fail_free_vsfile_hgei;
+			}
+			ret = kvm_riscv_aia_free_hgei(old_vsfile_cpu, old_vsfile_hgei);
+			/* TODO: Should we return TEE specific entry failure reason */
+			if (ret)
+				return ret;
+		} else {
+			/* Bind if it is not a migration case */
+			vcpu->arch.tc->imsic.bind_required = true;
+		}
+		/* Skip the oldvsfile and swfile update process as it is managed by TSM */
+		goto done;
+	}
 
 	/*
 	 * At this point, all interrupt producers have been moved
@@ -946,6 +984,7 @@ int kvm_riscv_vcpu_aia_imsic_inject(struct kvm_vcpu *vcpu,
 	unsigned long flags;
 	struct imsic_mrif_eix *eix;
 	struct imsic *imsic = vcpu->arch.aia.imsic_state;
+	int ret;
 
 	/* We only emulate one IMSIC MMIO page for each Guest VCPU */
 	if (!imsic || !iid || guest_index ||
@@ -960,7 +999,14 @@ int kvm_riscv_vcpu_aia_imsic_inject(struct kvm_vcpu *vcpu,
 	read_lock_irqsave(&imsic->vsfile_lock, flags);
 
 	if (imsic->vsfile_cpu >= 0) {
-		writel(iid, imsic->vsfile_va + IMSIC_MMIO_SETIPNUM_LE);
+		/* TSM can only inject the external interrupt if it is allowed by the guest */
+		if (is_tee_vcpu(vcpu)) {
+			ret = kvm_riscv_tee_vcpu_inject_interrupt(vcpu, iid);
+			if (ret)
+				kvm_err("External interrupt %d injection failed\n", iid);
+		}else {
+			writel(iid, imsic->vsfile_va + IMSIC_MMIO_SETIPNUM_LE);
+		}
 		kvm_vcpu_kick(vcpu);
 	} else {
 		eix = &imsic->swfile->eix[iid / BITS_PER_TYPE(u64)];
@@ -1038,6 +1084,17 @@ int kvm_riscv_vcpu_aia_imsic_init(struct kvm_vcpu *vcpu)
 	}
 	imsic->swfile = page_to_virt(swfile_page);
 	imsic->swfile_pa = page_to_phys(swfile_page);
+
+	/* No need to setup iodev ops for TVMs. Swfile will also not be used for
+	 * TVMs. However, allocate it for now as to avoid different path during
+	 * free.
+	 */
+	if (is_tee_vcpu(vcpu)) {
+		ret = kvm_riscv_tee_vcpu_imsic_addr(vcpu);
+		if (ret)
+			goto fail_free_swfile;
+		return 0;
+	}
 
 	/* Setup IO device */
 	kvm_iodevice_init(&imsic->iodev, &imsic_iodoev_ops);
