@@ -423,7 +423,10 @@ EXPORT_SYMBOL(ioport_unmap);
  * you expect in the correct way. */
 void pci_iounmap(struct pci_dev *dev, void __iomem * addr)
 {
-	IO_COND(addr, /* nothing */, iounmap(addr));
+	if (dev_is_authorized(&dev->dev))
+		IO_COND(addr, /* nothing */, iounmap_driver_hardened(addr));
+	else
+		IO_COND(addr, /* nothing */, iounmap(addr));
 }
 EXPORT_SYMBOL(pci_iounmap);
 #endif /* CONFIG_PCI */

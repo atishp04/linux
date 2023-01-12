@@ -448,6 +448,17 @@ Drivers should not need to use this function directly, but instead use
 functions like pci_iomap_range(), which use it implicitly based on driver
 authorization.
 
+iounmap_driver_hardened()
+-------------------------
+
+iounmap_driver_hardened() unmaps I/O memory that was shared with the host
+in a confidential guest platform. It is mainly used in platforms like
+Trusted Domain Extensions (TDX).
+
+Drivers should not need to use this function directly, but instead use
+functions like pci_iounmap(), which use it implicitly based on driver
+authorization.
+
 ioremap_driver_hardened_uc()
 ----------------------------
 

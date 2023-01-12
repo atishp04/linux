@@ -316,6 +316,8 @@ static inline void __iomem *ioremap(unsigned long port, unsigned long size)
 #define ioremap_driver_hardened ioremap
 /* Share memory with host in confidential guest platforms (WB version) */
 #define ioremap_cache_shared ioremap
+/* Unmap memory shared with the host in confidential guest platforms */
+#define iounmap_driver_hardened iounmap
 #define ioremap_driver_hardened_uc ioremap_uc
 #define ioremap_driver_hardened_wc ioremap_wc
 #define ioremap_uc ioremap

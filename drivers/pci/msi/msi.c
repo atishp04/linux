@@ -905,7 +905,11 @@ void pci_free_msi_irqs(struct pci_dev *dev)
 	pci_msi_teardown_msi_irqs(dev);
 
 	if (dev->msix_base) {
-		iounmap(dev->msix_base);
+		if (dev_is_authorized(&dev->dev))
+			iounmap_driver_hardened(dev->msix_base);
+		else
+			iounmap(dev->msix_base);
+
 		dev->msix_base = NULL;
 	}
 }

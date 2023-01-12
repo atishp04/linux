@@ -430,6 +430,8 @@ static inline void __iomem *ioremap(unsigned long offset, unsigned long size)
 #define ioremap_driver_hardened(X, Y)	ioremap((X), (Y))
 /* Share memory with host in confidential guest platforms (WB version) */
 #define ioremap_cache_shared(X, Y)	ioremap((X), (Y))
+/* Unmap memory shared with the host in confidential guest platforms */
+#define iounmap_driver_hardened         	iounmap((X))
 #define ioremap_driver_hardened_uc(X, Y)	ioremap_uc((X), (Y))
 #define ioremap_driver_hardened_wc(X, Y)	ioremap_wc((X), (Y))
 
