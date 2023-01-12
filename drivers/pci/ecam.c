@@ -79,7 +79,8 @@ struct pci_config_window *pci_ecam_create(struct device *dev,
 		if (!cfg->winp)
 			goto err_exit_malloc;
 	} else {
-		cfg->win = pci_remap_cfgspace(cfgres->start, bus_range * bsz);
+		cfg->win =
+			pci_remap_cfgspace(dev, cfgres->start, bus_range * bsz);
 		if (!cfg->win)
 			goto err_exit_iomap;
 	}
@@ -139,7 +140,7 @@ static int pci_ecam_add_bus(struct pci_bus *bus)
 	busn -= cfg->busr.start;
 	start = cfg->res.start + busn * bsz;
 
-	cfg->winp[busn] = pci_remap_cfgspace(start, bsz);
+	cfg->winp[busn] = pci_remap_cfgspace(&bus->dev, start, bsz);
 	if (!cfg->winp[busn])
 		return -ENOMEM;
 

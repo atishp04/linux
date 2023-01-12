@@ -231,10 +231,13 @@ static void __iomem *__pci_ioremap_resource(struct pci_dev *pdev, int bar,
 		return NULL;
 	}
 
-	if (write_combine)
-		return ioremap_wc(start, size);
+	if (dev_is_authorized(&pdev->dev)) {
+		return (write_combine) ?
+			       ioremap_driver_hardened_wc(start, size) :
+			       ioremap_driver_hardened(start, size);
+	}
 
-	return ioremap(start, size);
+	return (write_combine) ? ioremap_wc(start, size) : ioremap(start, size);
 }
 
 void __iomem *pci_ioremap_bar(struct pci_dev *pdev, int bar)
@@ -4304,7 +4307,7 @@ void __iomem *devm_pci_remap_cfgspace(struct device *dev,
 	if (!ptr)
 		return NULL;
 
-	addr = pci_remap_cfgspace(offset, size);
+	addr = pci_remap_cfgspace(dev, offset, size);
 	if (addr) {
 		*ptr = addr;
 		devres_add(dev, ptr);
