@@ -10,6 +10,7 @@
 #include <linux/init.h>
 #include <linux/bug.h>
 #include <linux/err.h>
+#include <linux/device.h>
 #include <asm/io.h>
 #include <asm/page.h>
 
@@ -81,9 +82,14 @@ void devm_memunmap(struct device *dev, void *addr);
  */
 #ifndef pci_remap_cfgspace
 #define pci_remap_cfgspace pci_remap_cfgspace
-static inline void __iomem *pci_remap_cfgspace(phys_addr_t offset,
-					       size_t size)
+static inline void __iomem *pci_remap_cfgspace(struct device *dev,
+					       phys_addr_t offset, size_t size)
 {
+	if (dev_is_authorized(dev)) {
+		return ioremap_driver_hardened_np(offset, size) ?:
+			       ioremap_driver_hardened(offset, size);
+	}
+
 	return ioremap_np(offset, size) ?: ioremap(offset, size);
 }
 #endif
