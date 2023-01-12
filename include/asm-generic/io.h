@@ -1096,6 +1096,10 @@ static inline void __iomem *ioremap(phys_addr_t addr, size_t size)
 #ifndef ioremap_driver_hardened
 #define ioremap_driver_hardened ioremap
 #endif
+/* Unmap memory shared with the host in confidential guest platforms */
+#ifndef iounmap_driver_hardened
+#define iounmap_driver_hardened iounmap
+#endif
 
 /* Share memory with host in confidential guest platforms (WB version) */
 #ifndef ioremap_cache_shared

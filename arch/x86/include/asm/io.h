@@ -326,8 +326,9 @@ extern void __iomem *ioremap_wt(resource_size_t offset, unsigned long size);
 #define ioremap_wt ioremap_wt
 
 extern void __iomem *ioremap_driver_hardened(resource_size_t offset,
-					 unsigned long size);
+					     unsigned long size);
 #define ioremap_driver_hardened ioremap_driver_hardened
+#define iounmap_driver_hardened iounmap
 
 extern void __iomem *ioremap_cache_shared(resource_size_t offset,
 					 unsigned long size);

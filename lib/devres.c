@@ -15,6 +15,11 @@ enum devm_ioremap_type {
 
 void devm_ioremap_release(struct device *dev, void *res)
 {
+	if (dev_is_authorized(dev)) {
+		iounmap_driver_hardened(*(void __iomem **)res);
+		return;
+	}
+
 	iounmap(*(void __iomem **)res);
 }
 
