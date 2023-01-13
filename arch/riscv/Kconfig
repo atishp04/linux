@@ -260,6 +260,11 @@ config ARCH_MMAP_RND_BITS_MAX
 config ARCH_MMAP_RND_COMPAT_BITS_MAX
 	default 17
 
+config RISCV_MEM_ENCRYPT
+	select ARCH_HAS_MEM_ENCRYPT
+	select ARCH_HAS_FORCE_DMA_UNENCRYPTED
+	def_bool n
+
 # set if we run in machine mode, cleared if we run in supervisor mode
 config RISCV_M_MODE
 	bool "Build a kernel that runs in machine mode"
@@ -855,6 +860,8 @@ config RISCV_COVE_HOST
 config RISCV_COVE_GUEST
 	bool "Guest Support for Confidential VM Extension(CoVE)"
 	default n
+	select SWIOTLB
+	select RISCV_MEM_ENCRYPT
 	help
 	  Enables support for running TVMs on platforms supporting CoVE.
 
