@@ -11,6 +11,7 @@
 #include <linux/module.h>
 #include <linux/seq_file.h>
 #include <asm/sbi.h>
+#include <asm/teeg_sbi.h>
 
 static struct fwnode_handle *(*__get_intc_node)(void);
 
@@ -36,8 +37,17 @@ int arch_show_interrupts(struct seq_file *p, int prec)
 
 void __init init_IRQ(void)
 {
+	int __maybe_unused ret;
+
 	irqchip_init();
 	if (!handle_arch_irq)
 		panic("No interrupt controller found.");
 	sbi_ipi_init();
+
+#ifdef CONFIG_RISCV_TRUSTED_VM
+	/* FIXME: For now just allow all interrupts. */
+	ret = sbi_teeg_allow_all_external_interrupt();
+	if (ret)
+		pr_err("Failed to allow external interrupts.\n");
+#endif
 }
