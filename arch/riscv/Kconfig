@@ -555,6 +555,14 @@ config COMPAT
 
 	  If you want to execute 32-bit userspace applications, say Y.
 
+config RISCV_TRUSTED_VM
+	bool "Trusted virtual machine (TVM) support for RISCV"
+	select ARCH_HAS_CC_PLATFORM
+	help
+	 Enables support for trusted virtual machines.
+
+	 If unsure, say "N".
+
 endmenu # "Kernel features"
 
 menu "Boot options"
