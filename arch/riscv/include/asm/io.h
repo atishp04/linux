@@ -133,6 +133,13 @@ __io_writes_outs(outs, u64, q, __io_pbr(), __io_paw())
 #define outsq(addr, buffer, count) __outsq(PCI_IOBASE + (addr), buffer, count)
 #endif
 
+#ifdef CONFIG_RISCV_COVE_GUEST
+extern void __iomem *ioremap_driver_hardened(phys_addr_t addr, size_t size);
+#define ioremap_driver_hardened ioremap_driver_hardened
+extern void iounmap_driver_hardened(void __iomem *addr);
+#define iounmap_driver_hardened iounmap_driver_hardened
+#endif
+
 #include <asm-generic/io.h>
 
 #ifdef CONFIG_MMU
