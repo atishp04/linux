@@ -158,6 +158,11 @@ config ARCH_MMAP_RND_BITS_MAX
 config ARCH_MMAP_RND_COMPAT_BITS_MAX
 	default 17
 
+config RISCV_MEM_ENCRYPT
+	select ARCH_HAS_MEM_ENCRYPT
+	select ARCH_HAS_FORCE_DMA_UNENCRYPTED
+	def_bool n
+
 # set if we run in machine mode, cleared if we run in supervisor mode
 config RISCV_M_MODE
 	bool
@@ -557,7 +562,9 @@ config COMPAT
 
 config RISCV_TRUSTED_VM
 	bool "Trusted virtual machine (TVM) support for RISCV"
+	select SWIOTLB
 	select ARCH_HAS_CC_PLATFORM
+	select RISCV_MEM_ENCRYPT
 	help
 	 Enables support for trusted virtual machines.
 

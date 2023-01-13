@@ -156,11 +156,24 @@ static void print_vm_layout(void) { }
 
 void __init mem_init(void)
 {
+#ifdef CONFIG_RISCV_TRUSTED_VM
+	/*
+         * Since the guest memory is inaccessible to the host, devices always
+         * need to use the SWIOTLB buffer for DMA even if dma_capable() says
+         * otherwise.
+         */
+	const unsigned int flags = SWIOTLB_VERBOSE | SWIOTLB_FORCE;
+	const bool swiotlb_en = true;
+#else
+	const unsigned int flags = SWIOTLB_VERBOSE;
+	const bool swiotlb_en = !!(max_pfn > PFN_DOWN(dma32_phys_limit));
+#endif
+
 #ifdef CONFIG_FLATMEM
 	BUG_ON(!mem_map);
 #endif /* CONFIG_FLATMEM */
 
-	swiotlb_init(max_pfn > PFN_DOWN(dma32_phys_limit), SWIOTLB_VERBOSE);
+	swiotlb_init(swiotlb_en, flags);
 	memblock_free_all();
 
 	print_vm_layout();
