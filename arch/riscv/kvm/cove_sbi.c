@@ -384,6 +384,24 @@ int sbi_covh_add_zero_pages(unsigned long tvmid, unsigned long page_addr_phys,
 	return 0;
 }
 
+int sbi_covh_add_shared_pages(unsigned long tvmid, unsigned long page_addr_phys,
+			      enum sbi_cove_page_type ptype,
+			      unsigned long npages,
+			      unsigned long tvm_base_page_addr)
+{
+	struct sbiret ret;
+
+	if (!PAGE_ALIGNED(page_addr_phys))
+		return -EINVAL;
+
+	ret = sbi_ecall(SBI_EXT_COVH, SBI_EXT_COVH_TVM_ADD_SHARED_PAGES, tvmid,
+			page_addr_phys, ptype, npages, tvm_base_page_addr, 0);
+	if (ret.error)
+		return sbi_err_map_linux_errno(ret.error);
+
+	return 0;
+}
+
 int sbi_covh_create_tvm_vcpu(unsigned long tvmid, unsigned long vcpuid,
 			     unsigned long vcpu_state_paddr)
 {

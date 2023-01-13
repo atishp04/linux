@@ -43,7 +43,7 @@ static int gstage_page_fault(struct kvm_vcpu *vcpu, struct kvm_run *run,
 
 	if (is_cove_vcpu(vcpu)) {
 		/* CoVE doesn't care about PTE prots now. No need to compute the prots */
-		ret = kvm_riscv_cove_gstage_map(vcpu, fault_addr, hva);
+		ret = kvm_riscv_cove_handle_pagefault(vcpu, fault_addr, hva);
 	} else {
 		ret = kvm_riscv_gstage_map(vcpu, memslot, fault_addr, hva,
 			(trap->scause == EXC_STORE_GUEST_PAGE_FAULT) ? true : false);
