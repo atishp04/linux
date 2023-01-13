@@ -36,4 +36,4 @@ kvm-y += vcpu_timer.o
 kvm-y += vcpu_vector.o
 kvm-y += vm.o
 kvm-y += vmid.o
-kvm-$(CONFIG_RISCV_COVE_HOST) += cove_sbi.o cove.o
+kvm-$(CONFIG_RISCV_COVE_HOST) += cove_sbi.o cove.o vcpu_sbi_covg.o

@@ -44,6 +44,18 @@ static void kvm_cove_local_fence(void *info)
 		kvm_err("local fence for TSM failed %d on cpu %d\n", rc, smp_processor_id());
 }
 
+static void cove_delete_shared_pinned_page_list(struct kvm *kvm,
+						struct list_head *tpages)
+{
+	struct kvm_riscv_cove_page *tpage, *temp;
+
+	list_for_each_entry_safe(tpage, temp, tpages, link) {
+		unpin_user_pages_dirty_lock(&tpage->page, 1, true);
+		list_del(&tpage->link);
+		kfree(tpage);
+	}
+}
+
 static void cove_delete_page_list(struct kvm *kvm, struct list_head *tpages, bool unpin)
 {
 	struct kvm_riscv_cove_page *tpage, *temp;
@@ -425,7 +437,8 @@ int kvm_riscv_cove_vcpu_sbi_ecall(struct kvm_vcpu *vcpu, struct kvm_run *run)
 
 	sbi_ext = kvm_vcpu_sbi_find_ext(vcpu, cp->a7);
 	if ((sbi_ext && sbi_ext->handler) && ((cp->a7 == SBI_EXT_DBCN) ||
-	    (cp->a7 == SBI_EXT_HSM) || (cp->a7 == SBI_EXT_SRST) || ext_is_01)) {
+	    (cp->a7 == SBI_EXT_HSM) || (cp->a7 == SBI_EXT_SRST) ||
+	    (cp->a7 == SBI_EXT_COVG) || ext_is_01)) {
 		ret = sbi_ext->handler(vcpu, run, &sbi_ret);
 	} else {
 		kvm_err("%s: SBI EXT %lx not supported for TVM\n", __func__, cp->a7);
@@ -451,7 +464,8 @@ ecall_done:
 	return ret;
 }
 
-int kvm_riscv_cove_gstage_map(struct kvm_vcpu *vcpu, gpa_t gpa, unsigned long hva)
+static int kvm_riscv_cove_gstage_map(struct kvm_vcpu *vcpu, gpa_t gpa,
+				     unsigned long hva)
 {
 	struct kvm_riscv_cove_page *tpage;
 	struct mm_struct *mm = current->mm;
@@ -515,6 +529,35 @@ free_tpage:
 	kfree(tpage);
 
 	return rc;
+}
+
+int kvm_riscv_cove_handle_pagefault(struct kvm_vcpu *vcpu, gpa_t gpa,
+				    unsigned long hva)
+{
+	struct kvm_cove_tvm_context *tvmc = vcpu->kvm->arch.tvmc;
+	struct kvm_riscv_cove_page *tpage, *next;
+	bool shared = false;
+
+	/* TODO: Implement a better approach to track regions to avoid
+	 * traversing the whole list on each fault.
+	 */
+	spin_lock(&vcpu->kvm->mmu_lock);
+	list_for_each_entry_safe(tpage, next, &tvmc->shared_pages, link) {
+		if (tpage->gpa == (gpa & PAGE_MASK)) {
+			shared = true;
+			break;
+		}
+	}
+	spin_unlock(&vcpu->kvm->mmu_lock);
+
+	if (shared) {
+		return sbi_covh_add_shared_pages(tvmc->tvm_guest_id,
+						 page_to_phys(tpage->page),
+						 SBI_COVE_PAGE_4K, 1,
+						 gpa & PAGE_MASK);
+	}
+
+	return kvm_riscv_cove_gstage_map(vcpu, gpa, hva);
 }
 
 void noinstr kvm_riscv_cove_vcpu_switchto(struct kvm_vcpu *vcpu, struct kvm_cpu_trap *trap)
@@ -804,6 +847,7 @@ void kvm_riscv_cove_vm_destroy(struct kvm *kvm)
 	cove_delete_page_list(kvm, &tvmc->reclaim_pending_pages, false);
 	cove_delete_page_list(kvm, &tvmc->measured_pages, false);
 	cove_delete_page_list(kvm, &tvmc->zero_pages, true);
+	cove_delete_shared_pinned_page_list(kvm, &tvmc->shared_pages);
 
 	/* Reclaim and Free the pages for tvm state management */
 	rc = sbi_covh_tsm_reclaim_pages(page_to_phys(tvmc->tvm_state.page), tvmc->tvm_state.npages);

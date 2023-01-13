@@ -59,6 +59,10 @@ int sbi_covh_create_tvm_vcpu(unsigned long tvmid, unsigned long tvm_vcpuid,
 
 int sbi_covh_run_tvm_vcpu(unsigned long tvmid, unsigned long tvm_vcpuid);
 
+int sbi_covh_add_shared_pages(unsigned long tvmid, unsigned long page_addr_phys,
+			      enum sbi_cove_page_type ptype,
+			      unsigned long npages,
+			      unsigned long tvm_base_page_addr);
 int sbi_covh_tvm_invalidate_pages(unsigned long tvmid,
 			     unsigned long tvm_base_page_addr,
 			     unsigned long len);

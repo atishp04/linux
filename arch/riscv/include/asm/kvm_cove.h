@@ -31,6 +31,9 @@
 
 #define get_order_num_pages(n) (get_order(n << PAGE_SHIFT))
 
+#define get_gpr_index(goffset) \
+	((goffset - KVM_ARCH_GUEST_ZERO) / (__riscv_xlen / 8))
+
 /* Describe a confidential or shared memory region */
 struct kvm_riscv_cove_mem_region {
 	unsigned long hva;
@@ -139,7 +142,8 @@ int kvm_riscv_cove_vcpu_sbi_ecall(struct kvm_vcpu *vcpu, struct kvm_run *run);
 
 int kvm_riscv_cove_vm_measure_pages(struct kvm *kvm, struct kvm_riscv_cove_measure_region *mr);
 int kvm_riscv_cove_vm_add_memreg(struct kvm *kvm, unsigned long gpa, unsigned long size);
-int kvm_riscv_cove_gstage_map(struct kvm_vcpu *vcpu, gpa_t gpa, unsigned long hva);
+int kvm_riscv_cove_handle_pagefault(struct kvm_vcpu *vcpu, gpa_t gpa,
+				    unsigned long hva);
 /* Fence related function */
 int kvm_riscv_cove_tvm_fence(struct kvm_vcpu *vcpu);
 
@@ -179,8 +183,9 @@ static inline int kvm_riscv_cove_vm_measure_pages(struct kvm *kvm,
 {
 	return -1;
 }
-static inline int kvm_riscv_cove_gstage_map(struct kvm_vcpu *vcpu,
-					    gpa_t gpa, unsigned long hva) {return -1; }
+static inline int kvm_riscv_cove_handle_pagefault(struct kvm_vcpu *vcpu,
+						  gpa_t gpa, unsigned long hva) { return -1; }
+
 /* TVM interrupt managenet via AIA functions */
 static inline int kvm_riscv_cove_aia_init(struct kvm *kvm) { return -1; }
 static inline int kvm_riscv_cove_vcpu_inject_interrupt(struct kvm_vcpu *vcpu,

@@ -13,6 +13,8 @@
 #include <asm/kvm_nacl.h>
 #include <asm/kvm_cove_sbi.h>
 #include <asm/kvm_vcpu_sbi.h>
+#include <asm/asm-offsets.h>
+#include <asm/kvm_cove.h>
 
 #ifndef CONFIG_RISCV_SBI_V01
 static const struct kvm_vcpu_sbi_extension vcpu_sbi_ext_v01 = {
@@ -24,6 +26,14 @@ static const struct kvm_vcpu_sbi_extension vcpu_sbi_ext_v01 = {
 
 #ifndef CONFIG_RISCV_PMU_SBI
 static const struct kvm_vcpu_sbi_extension vcpu_sbi_ext_pmu = {
+	.extid_start = -1UL,
+	.extid_end = -1UL,
+	.handler = NULL,
+};
+#endif
+
+#ifndef CONFIG_RISCV_COVE_HOST
+static const struct kvm_vcpu_sbi_extension vcpu_sbi_ext_covg = {
 	.extid_start = -1UL,
 	.extid_end = -1UL,
 	.handler = NULL,
@@ -83,6 +93,10 @@ static const struct kvm_riscv_sbi_extension_entry sbi_ext[] = {
 	{
 		.ext_idx = KVM_RISCV_SBI_EXT_VENDOR,
 		.ext_ptr = &vcpu_sbi_ext_vendor,
+	},
+	{
+		.ext_idx = KVM_RISCV_SBI_EXT_COVG,
+		.ext_ptr = &vcpu_sbi_ext_covg,
 	},
 };
 
