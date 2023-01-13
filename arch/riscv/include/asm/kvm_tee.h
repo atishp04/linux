@@ -31,6 +31,9 @@
 
 #define get_order_num_pages(n) (get_order(n << PAGE_SHIFT))
 
+#define get_gpr_index(goffset) \
+	((goffset - KVM_ARCH_GUEST_ZERO) / (__riscv_xlen / 8))
+
 /* This is part of UABI. DO NOT CHANGE IT */ 
 struct kvm_riscv_tee_measure_region {
 	/* Address of the user space where the VM code/data resides */
@@ -54,8 +57,8 @@ struct kvm_riscv_tee_page {
 	struct list_head link;
 	struct page *page;
 	//TODO: Do we need these fields
-	unsigned long va;
-	unsigned long pa;
+	unsigned long hva;
+	unsigned long gpa;
 	unsigned long ptype;
 };
 
@@ -145,6 +148,9 @@ int kvm_riscv_tee_vm_measure_pages(struct kvm *kvm, struct kvm_riscv_tee_measure
 int kvm_riscv_tee_vm_add_memreg(struct kvm *kvm, unsigned long gpa, unsigned long size);
 int kvm_riscv_tee_gstage_map(struct kvm_vcpu *vcpu, gpa_t gpa, unsigned long hva);
 
+int kvm_riscv_tee_share_page(struct kvm_vcpu *vcpu, gpa_t gpa);
+int kvm_riscv_tee_unshare_page(struct kvm_vcpu *vcpu, gpa_t gpa);
+
 /* AIA related tee function */
 int kvm_riscv_tee_aia_init(struct kvm *kvm);
 int kvm_riscv_tee_vcpu_inject_interrupt(struct kvm_vcpu *vcpu, unsigned long iid);
@@ -174,6 +180,15 @@ static inline int kvm_riscv_tee_vm_measure_pages(struct kvm *kvm, struct kvm_ris
 static inline int kvm_riscv_tee_vm_add_memreg(struct kvm *kvm, unsigned long gpa, unsigned long size) {return -1;};
 static inline int kvm_riscv_tee_gstage_map(struct kvm_vcpu *vcpu,
 					   gpa_t gpa, unsigned long hva) {return -1;}
+
+static inline int kvm_riscv_tee_share_page(struct kvm_vcpu *vcpu, gpa_t gpa)
+{
+	return -1;
+}
+static inline int kvm_riscv_tee_unshare_page(struct kvm_vcpu *vcpu, gpa_t gpa)
+{
+	return -1;
+}
 
 /* AIA related TEE functions */
 static inline int kvm_riscv_tee_aia_init(struct kvm *kvm) {return -1};

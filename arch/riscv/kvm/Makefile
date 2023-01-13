@@ -31,3 +31,4 @@ kvm-y += aia_device.o
 kvm-y += aia_aplic.o
 kvm-y += aia_imsic.o
 kvm-$(CONFIG_RISCV_TEE_VM) += tee_sbi.o tee.o
+kvm-$(CONFIG_RISCV_TEE_VM) += vcpu_sbi_teeg.o

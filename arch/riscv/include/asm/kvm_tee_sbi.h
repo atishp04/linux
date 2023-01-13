@@ -54,6 +54,10 @@ int sbi_teeh_add_measured_pages(unsigned long tvmid, unsigned long src_addr,
 int sbi_teeh_add_zero_pages(unsigned long tvmid, unsigned long page_addr_phys,
 			    enum sbi_tee_page_type ptype, unsigned long npages,
 			    unsigned long tvm_base_page_addr);
+int sbi_teeh_add_shared_pages(unsigned long tvmid, unsigned long page_addr_phys,
+			      enum sbi_tee_page_type ptype,
+			      unsigned long npages,
+			      unsigned long tvm_base_page_addr);
 
 int sbi_teeh_create_tvm_vcpu(unsigned long tvmid, unsigned long tvm_vcpuid,
 			     unsigned long vpus_page_addr);

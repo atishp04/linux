@@ -59,5 +59,8 @@ extern const struct kvm_vcpu_sbi_extension vcpu_sbi_ext_hsm;
 extern const struct kvm_vcpu_sbi_extension vcpu_sbi_ext_dbcn;
 extern const struct kvm_vcpu_sbi_extension vcpu_sbi_ext_experimental;
 extern const struct kvm_vcpu_sbi_extension vcpu_sbi_ext_vendor;
+#ifdef CONFIG_RISCV_TEE_VM
+extern const struct kvm_vcpu_sbi_extension vcpu_sbi_ext_teeg;
+#endif
 
 #endif /* __RISCV_KVM_VCPU_SBI_H__ */
