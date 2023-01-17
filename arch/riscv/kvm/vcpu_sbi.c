@@ -10,6 +10,8 @@
 #include <linux/err.h>
 #include <linux/kvm_host.h>
 #include <asm/sbi.h>
+#include <asm/kvm_nacl.h>
+#include <asm/kvm_tee_sbi.h>
 #include <asm/kvm_vcpu_sbi.h>
 
 static int kvm_linux_err_map_sbi(int err)
@@ -236,6 +238,65 @@ const struct kvm_vcpu_sbi_extension *kvm_vcpu_sbi_find_ext(
 	}
 
 	return NULL;
+}
+
+/* TODO: Move it to tee.c once the kvm_linux_err_map_sbi is removed in upstream */
+int kvm_riscv_tee_vcpu_sbi_ecall(struct kvm_vcpu *vcpu, struct kvm_run *run)
+{
+	void *nshmem;
+	int ret = 1;
+	bool userspace_exit = false;
+	const struct kvm_vcpu_sbi_extension *sbi_ext;
+	struct kvm_cpu_context *cp = &vcpu->arch.guest_context;
+	unsigned long out_val = 0;
+	bool ext_is_01 = false;
+	unsigned long sbi_err = 0;
+
+	nshmem = nacl_shmem();
+	cp->a0 = nacl_shmem_gpr_read_tee(nshmem, KVM_ARCH_GUEST_A0);
+	cp->a1 = nacl_shmem_gpr_read_tee(nshmem, KVM_ARCH_GUEST_A1);
+	cp->a6 = nacl_shmem_gpr_read_tee(nshmem, KVM_ARCH_GUEST_A6);
+	cp->a7 = nacl_shmem_gpr_read_tee(nshmem, KVM_ARCH_GUEST_A7);
+
+	/* TSM will only forward legacy console to the host */
+#ifdef CONFIG_RISCV_SBI_V01
+	if (cp->a7 == SBI_EXT_0_1_CONSOLE_PUTCHAR)
+		ext_is_01 = true;
+#endif
+
+	sbi_ext = kvm_vcpu_sbi_find_ext(vcpu, cp->a7);
+	if ((sbi_ext && sbi_ext->handler) && ((cp->a7 == SBI_EXT_DBCN) || (cp->a7 == SBI_EXT_HSM) || ext_is_01)) {
+		ret = sbi_ext->handler(vcpu, run, &out_val, NULL, &userspace_exit);
+	} else {
+		kvm_err("%s: SBI EXT %lx not supported for TVM\n", __func__, cp->a7);
+		/* Return error for unsupported SBI calls */
+		sbi_err = SBI_ERR_NOT_SUPPORTED;
+		goto ecall_done;
+	}
+
+	/* Exit ioctl loop or Propagate the error code the guest */
+	if (userspace_exit) {
+		ret = 0;
+	} else {
+		/**
+		 * SBI extension handler always returns an Linux error code. Convert
+		 * it to the SBI specific error code that can be propagated the SBI
+		 * caller.
+		 */
+		ret = kvm_linux_err_map_sbi(ret);
+		sbi_err = ret;
+		ret = 1;
+	}
+ecall_done:
+	/*
+	 * No need to update the secp as TSM will take care of SEPC increment
+	 * for ECALLS that won't be forwarded to the user space (console)
+	 */
+	nacl_shmem_gpr_write_tee(nshmem, KVM_ARCH_GUEST_A0, sbi_err);
+	if (!ext_is_01)
+		nacl_shmem_gpr_write_tee(nshmem, KVM_ARCH_GUEST_A1, out_val);
+
+	return ret;
 }
 
 int kvm_riscv_vcpu_sbi_ecall(struct kvm_vcpu *vcpu, struct kvm_run *run)
