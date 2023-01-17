@@ -147,6 +147,60 @@ void kvm_riscv_cove_vcpu_put(struct kvm_vcpu *vcpu)
 	/* TODO */
 }
 
+int kvm_riscv_cove_vcpu_sbi_ecall(struct kvm_vcpu *vcpu, struct kvm_run *run)
+{
+	void *nshmem;
+	const struct kvm_vcpu_sbi_extension *sbi_ext;
+	struct kvm_cpu_context *cp = &vcpu->arch.guest_context;
+	struct kvm_cpu_trap utrap = { 0 };
+	struct kvm_vcpu_sbi_return sbi_ret = {
+		.out_val = 0,
+		.err_val = 0,
+		.utrap = &utrap,
+	};
+	bool ext_is_01 = false;
+	int ret = 1;
+
+	nshmem = nacl_shmem();
+	cp->a0 = nacl_shmem_gpr_read_cove(nshmem, KVM_ARCH_GUEST_A0);
+	cp->a1 = nacl_shmem_gpr_read_cove(nshmem, KVM_ARCH_GUEST_A1);
+	cp->a6 = nacl_shmem_gpr_read_cove(nshmem, KVM_ARCH_GUEST_A6);
+	cp->a7 = nacl_shmem_gpr_read_cove(nshmem, KVM_ARCH_GUEST_A7);
+
+	/* TSM will only forward legacy console to the host */
+#ifdef CONFIG_RISCV_SBI_V01
+	if (cp->a7 == SBI_EXT_0_1_CONSOLE_PUTCHAR)
+		ext_is_01 = true;
+#endif
+
+	sbi_ext = kvm_vcpu_sbi_find_ext(vcpu, cp->a7);
+	if ((sbi_ext && sbi_ext->handler) && ((cp->a7 == SBI_EXT_DBCN) ||
+	    (cp->a7 == SBI_EXT_HSM) || (cp->a7 == SBI_EXT_SRST) || ext_is_01)) {
+		ret = sbi_ext->handler(vcpu, run, &sbi_ret);
+	} else {
+		kvm_err("%s: SBI EXT %lx not supported for TVM\n", __func__, cp->a7);
+		/* Return error for unsupported SBI calls */
+		sbi_ret.err_val = SBI_ERR_NOT_SUPPORTED;
+		goto ecall_done;
+	}
+
+	if (ret < 0)
+		goto ecall_done;
+
+	ret = (sbi_ret.uexit) ? 0 : 1;
+
+ecall_done:
+	/*
+	 * No need to update the sepc as TSM will take care of SEPC increment
+	 * for ECALLS that won't be forwarded to the user space (e.g. console)
+	 */
+	nacl_shmem_gpr_write_cove(nshmem, KVM_ARCH_GUEST_A0, sbi_ret.err_val);
+	if (!ext_is_01)
+		nacl_shmem_gpr_write_cove(nshmem, KVM_ARCH_GUEST_A1, sbi_ret.out_val);
+
+	return ret;
+}
+
 int kvm_riscv_cove_gstage_map(struct kvm_vcpu *vcpu, gpa_t gpa, unsigned long hva)
 {
 	struct kvm_riscv_cove_page *tpage;

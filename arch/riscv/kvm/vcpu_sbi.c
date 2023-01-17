@@ -10,6 +10,8 @@
 #include <linux/err.h>
 #include <linux/kvm_host.h>
 #include <asm/sbi.h>
+#include <asm/kvm_nacl.h>
+#include <asm/kvm_cove_sbi.h>
 #include <asm/kvm_vcpu_sbi.h>
 
 #ifndef CONFIG_RISCV_SBI_V01

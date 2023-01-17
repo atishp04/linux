@@ -207,11 +207,15 @@ int kvm_riscv_vcpu_exit(struct kvm_vcpu *vcpu, struct kvm_run *run,
 	case EXC_INST_GUEST_PAGE_FAULT:
 	case EXC_LOAD_GUEST_PAGE_FAULT:
 	case EXC_STORE_GUEST_PAGE_FAULT:
+		//TODO: If the host runs in HS mode, this won't work as we don't
+		//read hstatus from the shared memory yet
 		if (vcpu->arch.guest_context.hstatus & HSTATUS_SPV)
 			ret = gstage_page_fault(vcpu, run, trap);
 		break;
 	case EXC_SUPERVISOR_SYSCALL:
-		if (vcpu->arch.guest_context.hstatus & HSTATUS_SPV)
+		if (is_cove_vcpu(vcpu))
+			ret = kvm_riscv_cove_vcpu_sbi_ecall(vcpu, run);
+		else if (vcpu->arch.guest_context.hstatus & HSTATUS_SPV)
 			ret = kvm_riscv_vcpu_sbi_ecall(vcpu, run);
 		break;
 	default:
