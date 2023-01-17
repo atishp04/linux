@@ -156,7 +156,7 @@ __kvm_riscv_nacl_hfence(__s,					\
 
 #define nacl_shmem_csr_read(__s, __c)				\
 ({								\
-	unsigned long *__a = (__s) + SBI_NACL_SHMEM_CSR_OFFSET;	\
+	unsigned long *__a = (__s) + 0;	\
 	lelong_to_cpu(__a[SBI_NACL_SHMEM_CSR_INDEX(__c)]);	\
 })
 
