@@ -14,10 +14,12 @@
 #include <linux/smp.h>
 #include <linux/kvm_host.h>
 #include <asm/csr.h>
+#include <asm/kvm_tee.h>
 
 static unsigned long vmid_version = 1;
 static unsigned long vmid_next;
-static unsigned long vmid_bits;
+//TODO: HACK. This should come from TSM. Fix it
+static unsigned long vmid_bits = 5;
 static DEFINE_SPINLOCK(vmid_lock);
 
 void kvm_riscv_gstage_vmid_detect(void)

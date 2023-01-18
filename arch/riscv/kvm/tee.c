@@ -162,17 +162,11 @@ int kvm_riscv_tee_aia_claim_imsic(struct kvm_vcpu *vcpu, phys_addr_t imsic_pa)
 {
 	int ret;
 	struct kvm *kvm = vcpu->kvm;
-	struct kvm_tee_tvm_vcpu_context *tvcpu = vcpu->arch.tc;
 
 	if (!kvm->arch.tvmc)
 		return -EINVAL;
 
-	if (tvcpu->imsic.bound) {
-		kvm_err("Imisc claim can not proceed as it is still bound on vcpu %d\n",
-			vcpu->vcpu_idx);
-		return -EINVAL;
-	}
-
+	//TODO: Add bound sanity check here. Imsic file must not be bound
 	ret = sbi_teei_reclaim_imsic(imsic_pa);
 	if (ret)
 		return -EPERM;

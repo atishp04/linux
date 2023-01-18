@@ -105,23 +105,25 @@ int kvm_arch_init(void *opaque)
 		return -ENODEV;
 	}
 
-	rc = kvm_riscv_tee_init();
-	if (!rc)
-		goto skip_hmode_ops;
-
+#if 0
+	//We have to skip it based on VM type..but not VM is created at this point. So RFENCE allowed
+	// when ?
 	//TODO: We don't RFENCE extension as TEEH has its own FIDs fro flushing TLB
 	if (sbi_probe_extension(SBI_EXT_RFENCE) <= 0) {
 		kvm_info("require SBI RFENCE extension\n");
 		return -ENODEV;
 	}
+#endif
 
 	rc = kvm_riscv_nacl_init();
 	if (rc && rc != -ENODEV)
 		return rc;
 
+#if 0
 	kvm_riscv_gstage_mode_detect();
 
 	kvm_riscv_gstage_vmid_detect();
+#endif
 
 	rc = kvm_riscv_aia_init();
 	if (rc && rc != -ENODEV) {
@@ -129,11 +131,13 @@ int kvm_arch_init(void *opaque)
 		return rc;
 	}
 
-skip_hmode_ops:
 	kvm_info("hypervisor extension available\n");
 
-	if (kvm_riscv_nacl_available())
+	if (kvm_riscv_nacl_available()) {
 		kvm_info("using SBI nested acceleration\n");
+		/* TEE VM is dependent on SBI NACL extension */
+		kvm_riscv_tee_init();
+	}
 
 	switch (kvm_riscv_gstage_mode()) {
 	case HGATP_MODE_SV32X4:
