@@ -61,6 +61,11 @@ struct kvm_riscv_core {
 	unsigned long mode;
 };
 
+struct kvm_riscv_tvm_mem {
+	unsigned long addr;
+	unsigned long size;
+};
+
 /* Possible privilege modes for kvm_riscv_core */
 #define KVM_RISCV_MODE_S	1
 #define KVM_RISCV_MODE_U	0
