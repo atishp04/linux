@@ -417,13 +417,13 @@ int kvm_riscv_aia_alloc_hgei(int cpu, struct kvm_vcpu *owner,
 	return ret;
 }
 
-void kvm_riscv_aia_free_hgei(int cpu, int hgei)
+int kvm_riscv_aia_free_hgei(int cpu, int hgei)
 {
 	unsigned long flags;
 	struct aia_hgei_control *hgctrl = per_cpu_ptr(&aia_hgei, cpu);
 
 	if (!kvm_riscv_aia_available() || !hgctrl)
-		return;
+		return 0;
 
 	raw_spin_lock_irqsave(&hgctrl->lock, flags);
 
@@ -435,6 +435,8 @@ void kvm_riscv_aia_free_hgei(int cpu, int hgei)
 	}
 
 	raw_spin_unlock_irqrestore(&hgctrl->lock, flags);
+
+	return 0;
 }
 
 void kvm_riscv_aia_wakeon_hgei(struct kvm_vcpu *owner, bool enable)

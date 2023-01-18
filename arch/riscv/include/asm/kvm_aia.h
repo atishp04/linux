@@ -163,7 +163,7 @@ void kvm_riscv_aia_destroy_vm(struct kvm *kvm);
 
 int kvm_riscv_aia_alloc_hgei(int cpu, struct kvm_vcpu *owner,
 			     void __iomem **hgei_va, phys_addr_t *hgei_pa);
-void kvm_riscv_aia_free_hgei(int cpu, int hgei);
+int kvm_riscv_aia_free_hgei(int cpu, int hgei);
 void kvm_riscv_aia_wakeon_hgei(struct kvm_vcpu *owner, bool enable);
 
 void kvm_riscv_aia_enable(void);
