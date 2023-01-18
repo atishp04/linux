@@ -61,6 +61,11 @@ struct kvm_riscv_core {
 	unsigned long mode;
 };
 
+struct kvm_riscv_tvm_mem {
+	unsigned long addr;
+	unsigned long size;
+};
+
 /* Possible privilege modes for kvm_riscv_core */
 #define KVM_RISCV_MODE_S	1
 #define KVM_RISCV_MODE_U	0
@@ -96,6 +101,18 @@ struct kvm_riscv_timer {
 	__u64 time;
 	__u64 compare;
 	__u64 state;
+};
+
+/* Memory region details of a CoVE guest that is measured at boot time */
+struct kvm_riscv_cove_measure_region {
+	/* Address of the user space where the VM code/data resides */
+	unsigned long userspace_addr;
+
+	/* The guest physical address where VM code/data should be mapped */
+	unsigned long gpa;
+
+	/* Size of the region */
+	unsigned long size;
 };
 
 /*
