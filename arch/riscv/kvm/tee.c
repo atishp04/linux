@@ -210,6 +210,116 @@ tvcpuc_error:
 	return rc;
 }
 
+int kvm_riscv_tee_vm_measure_pages(struct kvm *kvm, struct kvm_riscv_tee_measure_region *mr)
+{
+	struct kvm_tee_tvm_context *tvmc = kvm->arch.tvmc;
+	struct kvm_riscv_tee_page_range measured_pr;
+	int rc, idx, num_pages;
+	struct kvm_riscv_tee_mem_region *conf;
+	struct page *pinned_page, *conf_page;
+	struct kvm_riscv_tee_page *cpage;
+
+	if (!tvmc)
+		return -EFAULT;
+
+	if (tvmc->finalized_done) {
+		kvm_err("measured_mr pages can not be added after finalize\n");
+		return -EINVAL;
+	}
+
+	num_pages = bytes_to_pages(mr->size);
+
+	kvm_info("%s: In user_addr %lx gpa %lx size %lx num_pages %d...\n", __func__,
+		mr->userspace_addr, mr->gpa, mr->size, num_pages);
+	conf = &tvmc->confidential_region;
+
+	if (!IS_ALIGNED(mr->userspace_addr, PAGE_SIZE) ||
+	    !IS_ALIGNED(mr->gpa, PAGE_SIZE) || !mr->size ||
+	    !((conf->gpa <= mr->gpa) && ((conf->gpa + (conf->npages << PAGE_SHIFT)) >=
+	    				 mr->gpa + mr->size)))
+		return -EINVAL;
+
+	idx = srcu_read_lock(&kvm->srcu);
+
+	/*TODO: Iterate one page at a time as pinning multiple pages fail with unmapped panic
+	 * with a virtual address range belonging to vmalloc region for some reason.
+	 */
+	while(num_pages) {
+		if (signal_pending(current)) {
+			rc = -ERESTARTSYS;
+			break;
+		}
+
+		if (need_resched())
+			cond_resched();
+
+		rc = get_user_pages_fast(mr->userspace_addr, 1, 0, &pinned_page);
+		if (rc < 0) {
+			kvm_err("Pinning the userpsace addr %lx failed\n", mr->userspace_addr);
+			break;
+		}
+
+		/* Enough pages are not available to be pinned */
+		if (rc != 1) {
+			rc = -ENOMEM;
+			break;
+		}
+		conf_page = alloc_page(GFP_KERNEL | __GFP_ZERO);
+		if (!conf_page) {
+			rc = -ENOMEM;
+			break;
+		}
+
+		measured_pr.num_pages = 1;
+		measured_pr.pgr_phys = page_to_phys(conf_page);
+		measured_pr.pgr = page_to_virt(conf_page);
+		measured_pr.ptype = kvm_tee_map_ptype(PAGE_SIZE);
+
+		/*TODO: Can we measure it without issueing fence ?*/
+		rc = tee_convert_pages(&measured_pr, true);
+		if (rc)
+			goto conf_error;
+
+		rc = sbi_teeh_add_measured_pages(tvmc->tvm_guest_id, page_to_phys(pinned_page),
+					 	page_to_phys(conf_page), kvm_tee_map_ptype(PAGE_SIZE),
+					 	1, mr->gpa);
+
+		/* Unpin the page now */
+		put_page(pinned_page);
+		if (rc)
+			goto measure_error;
+
+		cpage = kmalloc(sizeof(*cpage), GFP_KERNEL_ACCOUNT);
+		if (!cpage) {
+			rc = -ENOMEM;
+			goto measure_error;
+		}
+
+		cpage->page = conf_page;
+		INIT_LIST_HEAD(&cpage->link);
+		list_add(&cpage->link, &tvmc->measured_pages);
+
+		mr->userspace_addr += PAGE_SIZE;
+		mr->gpa += PAGE_SIZE;
+		num_pages--;
+
+		continue;
+conf_error:
+		kvm_err("Converting page failed\n");
+measure_error:
+		kvm_err("Adding measured page at %lx failed\n", mr->gpa);
+		break;
+	}
+
+	srcu_read_unlock(&kvm->srcu, idx);
+	//TODO: Iterate over the converted page list and free them
+	//If one conversion/add failed: We need to delete everything and return error
+	if (num_pages)
+		kvm_err("Adding measured pages or conversion failed %d\n", num_pages);
+
+	return rc;
+}
+
 int kvm_riscv_tee_vm_add_memreg(struct kvm *kvm, unsigned long gpa, unsigned long size)
 {
 	int rc;
