@@ -15,6 +15,7 @@
 #include <asm/hwcap.h>
 #include <asm/insn-def.h>
 #include <asm/kvm_nacl.h>
+#include <asm/kvm_cove.h>
 
 #define has_svinval()	riscv_has_extension_unlikely(RISCV_ISA_EXT_SVINVAL)
 
@@ -23,6 +24,9 @@ void kvm_riscv_local_hfence_gvma_vmid_gpa(unsigned long vmid,
 					  unsigned long order)
 {
 	gpa_t pos;
+
+	if (kvm_riscv_cove_enabled())
+		return;
 
 	if (PTRS_PER_PTE < (gpsz >> order)) {
 		kvm_riscv_local_hfence_gvma_vmid_all(vmid);
@@ -44,6 +48,9 @@ void kvm_riscv_local_hfence_gvma_vmid_gpa(unsigned long vmid,
 
 void kvm_riscv_local_hfence_gvma_vmid_all(unsigned long vmid)
 {
+	if (kvm_riscv_cove_enabled())
+		return;
+
 	asm volatile(HFENCE_GVMA(zero, %0) : : "r" (vmid) : "memory");
 }
 
@@ -72,6 +79,10 @@ void kvm_riscv_local_hfence_gvma_gpa(gpa_t gpa, gpa_t gpsz,
 
 void kvm_riscv_local_hfence_gvma_all(void)
 {
+	/* For TVMs, TSM will take care of hfence */
+	if (kvm_riscv_cove_enabled())
+		return;
+
 	asm volatile(HFENCE_GVMA(zero, zero) : : : "memory");
 }
 

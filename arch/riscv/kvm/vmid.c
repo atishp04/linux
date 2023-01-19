@@ -14,6 +14,7 @@
 #include <linux/smp.h>
 #include <linux/kvm_host.h>
 #include <asm/csr.h>
+#include <asm/kvm_cove.h>
 
 static unsigned long vmid_version = 1;
 static unsigned long vmid_next;
@@ -119,6 +120,8 @@ void kvm_riscv_gstage_vmid_update(struct kvm_vcpu *vcpu)
 	spin_unlock(&vmid_lock);
 
 	/* Request G-stage page table update for all VCPUs */
-	kvm_for_each_vcpu(i, v, vcpu->kvm)
-		kvm_make_request(KVM_REQ_UPDATE_HGATP, v);
+	kvm_for_each_vcpu(i, v, vcpu->kvm) {
+		if (!is_cove_vcpu(vcpu))
+			kvm_make_request(KVM_REQ_UPDATE_HGATP, v);
+	}
 }
