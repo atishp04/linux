@@ -15,6 +15,7 @@
 #include <asm/hwcap.h>
 #include <asm/insn-def.h>
 #include <asm/kvm_nacl.h>
+#include <asm/kvm_tee.h>
 
 #define has_svinval()	\
 	static_branch_unlikely(&riscv_isa_ext_keys[RISCV_ISA_EXT_KEY_SVINVAL])
@@ -165,6 +166,9 @@ void kvm_riscv_local_tlb_sanitize(struct kvm_vcpu *vcpu)
 	    vcpu->arch.last_exit_cpu == vcpu->cpu)
 		return;
 
+	/* TODO: TSM doesn't support VMID reading yet. Do not issue any hfence */
+	if (!is_tee_vcpu(vcpu))
+		kvm_riscv_local_hfence_gvma_vmid_all(vmid);
 	/*
 	 * On RISC-V platforms with hardware VMID support, we share same
 	 * VMID for all VCPUs of a particular Guest/VM. This means we might
@@ -177,7 +181,6 @@ void kvm_riscv_local_tlb_sanitize(struct kvm_vcpu *vcpu)
 	 */
 
 	vmid = READ_ONCE(vcpu->kvm->arch.vmid.vmid);
-	kvm_riscv_local_hfence_gvma_vmid_all(vmid);
 }
 
 void kvm_riscv_fence_i_process(struct kvm_vcpu *vcpu)

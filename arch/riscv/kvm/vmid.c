@@ -108,8 +108,10 @@ void kvm_riscv_gstage_vmid_update(struct kvm_vcpu *vcpu)
 		 * running, we force VM exits on all host CPUs using IPI and
 		 * flush all Guest TLBs.
 		 */
-		on_each_cpu_mask(cpu_online_mask, __local_hfence_gvma_all,
-				 NULL, 1);
+		/* TODO: Fix this after HGATP emulation is done */
+		if (!is_tee_vcpu(vcpu))
+			on_each_cpu_mask(cpu_online_mask, __local_hfence_gvma_all,
+					 NULL, 1);
 	}
 
 	vmid->vmid = vmid_next;
@@ -119,6 +121,10 @@ void kvm_riscv_gstage_vmid_update(struct kvm_vcpu *vcpu)
 	WRITE_ONCE(vmid->vmid_version, READ_ONCE(vmid_version));
 
 	spin_unlock(&vmid_lock);
+
+	/* TODO: VMID read is not supported yet. Thus, HGATP update is not required */
+	if (is_tee_vcpu(vcpu))
+		return;
 
 	/* Request G-stage page table update for all VCPUs */
 	kvm_for_each_vcpu(i, v, vcpu->kvm)
