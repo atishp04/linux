@@ -86,11 +86,13 @@ static int __init hvc_sbi_init(void)
 
 	if ((sbi_spec_version >= sbi_mk_version(1, 0)) &&
 	    (sbi_probe_extension(SBI_EXT_DBCN) > 0)) {
+#if 0
 		err = PTR_ERR_OR_ZERO(hvc_alloc(0, 0, &hvc_sbi_dbcn_ops, 16));
 		if (err)
 			return err;
 		hvc_instantiate(0, 0, &hvc_sbi_dbcn_ops);
 	} else {
+#endif
 #ifdef CONFIG_RISCV_SBI_V01
 		err = PTR_ERR_OR_ZERO(hvc_alloc(0, 0, &hvc_sbi_v01_ops, 16));
 		if (err)

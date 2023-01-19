@@ -42,12 +42,13 @@ static int __init early_sbi_setup(struct earlycon_device *device,
 				  const char *opt)
 {
 	int ret = 0;
-
+#if 0
 	/* TODO: Check for SBI debug console (DBCN) extension */
 	if ((sbi_spec_version >= sbi_mk_version(1, 0)) &&
 	    (sbi_probe_extension(SBI_EXT_DBCN) > 0))
 		device->con->write = sbi_dbcn_console_write;
 	else
+#endif
 #ifdef CONFIG_RISCV_SBI_V01
 		device->con->write = sbi_0_1_console_write;
 #else
