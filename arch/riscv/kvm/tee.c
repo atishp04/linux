@@ -448,7 +448,8 @@ void noinstr kvm_riscv_tee_vcpu_switchto(struct kvm_vcpu *vcpu, struct kvm_cpu_t
 		}
 	}
 
-	rc = sbi_teeh_run_tvm_vcpu(tvmc->tvm_guest_id, vcpu->vcpu_idx);
+	rc = sbi_teeh_run_tvm_vcpu(tvmc->tvm_guest_id, vcpu->vcpu_idx,
+				   &vcpu->arch.tc->is_blocked);
 	if (rc) {
 		//TODO: Should we try return to the user space or panic ?
 		kvm_err("TVM run failed vcpu id %d with rc %d\n", vcpu->vcpu_idx, rc);

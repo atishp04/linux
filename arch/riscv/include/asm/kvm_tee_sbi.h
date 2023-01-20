@@ -57,8 +57,8 @@ int sbi_teeh_add_zero_pages(unsigned long tvmid, unsigned long page_addr_phys,
 
 int sbi_teeh_create_tvm_vcpu(unsigned long tvmid, unsigned long tvm_vcpuid,
 			     unsigned long vpus_page_addr);
-
-int sbi_teeh_run_tvm_vcpu(unsigned long tvmid, unsigned long tvm_vcpuid);
+int sbi_teeh_run_tvm_vcpu(unsigned long tvmid, unsigned long vcpuid,
+			  bool *is_blocked);
 
 /* Functions related to TEEI */
 int sbi_teei_tvm_aia_init(unsigned long tvm_gid, struct sbi_tee_tvm_aia_params *tvm_aia_params);

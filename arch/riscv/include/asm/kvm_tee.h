@@ -80,6 +80,8 @@ struct kvm_tee_tvm_vcpu_context {
 	struct kvm_riscv_tee_page_range reg_shmem;
 
 	struct imsic_tee_state imsic;
+
+	bool is_blocked;
 };
 struct kvm_tee_tvm_context {
 	struct kvm *kvm;
