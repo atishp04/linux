@@ -467,10 +467,15 @@ config RISCV_TEE_VM
 	bool "Confidential Computing Support"
 	default n
 	depends on KVM
+	select SWIOTLB
+	select ARCH_HAS_CC_PLATFORM
+	select RISCV_MEM_ENCRYPT
 	help
           Enable this if the platform supports confidential computing. That means
 	  the platform should be capable of running Trusted Security Module (TSM)
 	  in HS mode.
+
+	  If unsure, say "N".
 
 endmenu # "Platform type"
 
@@ -559,16 +564,6 @@ config COMPAT
 	  ptrace interface are handled appropriately by the kernel.
 
 	  If you want to execute 32-bit userspace applications, say Y.
-
-config RISCV_TRUSTED_VM
-	bool "Trusted virtual machine (TVM) support for RISCV"
-	select SWIOTLB
-	select ARCH_HAS_CC_PLATFORM
-	select RISCV_MEM_ENCRYPT
-	help
-	 Enables support for trusted virtual machines.
-
-	 If unsure, say "N".
 
 endmenu # "Kernel features"
 

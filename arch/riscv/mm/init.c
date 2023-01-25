@@ -156,7 +156,7 @@ static void print_vm_layout(void) { }
 
 void __init mem_init(void)
 {
-#ifdef CONFIG_RISCV_TRUSTED_VM
+#ifdef CONFIG_RISCV_TEE_VM
 	/*
          * Since the guest memory is inaccessible to the host, devices always
          * need to use the SWIOTLB buffer for DMA even if dma_capable() says

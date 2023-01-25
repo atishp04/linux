@@ -15,7 +15,7 @@ obj-y += cacheflush.o
 obj-y += context.o
 obj-y += pgtable.o
 obj-y += pmem.o
-obj-$(CONFIG_RISCV_TRUSTED_VM) += ioremap_hardened.o
+obj-$(CONFIG_RISCV_TEE_VM) += ioremap_hardened.o
 
 ifeq ($(CONFIG_MMU),y)
 obj-$(CONFIG_SMP) += tlbflush.o
