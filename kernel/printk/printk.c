@@ -3161,6 +3161,32 @@ static int try_enable_preferred_console(struct console *newcon,
 	struct console_cmdline *c;
 	int i, err;
 
+	if (newcon->index < 0 && preferred_console >= 0) {
+		c = &console_cmdline[preferred_console];
+
+		if (c->user_specified != user_specified)
+			goto match_all;
+
+		if (!newcon->match ||
+		    newcon->match(newcon, c->name, c->index, c->options) != 0) {
+			if (strcmp(c->name, newcon->name) != 0)
+				goto match_all;
+
+			newcon->index = c->index;
+
+			if (_braille_register_console(newcon, c))
+				return 0;
+
+			if (newcon->setup &&
+			    (err = newcon->setup(newcon, c->options)) != 0)
+				return err;
+			newcon->flags |= CON_ENABLED;
+			newcon->flags |= CON_CONSDEV;
+			return 0;
+		}
+	}
+
+match_all:
 	for (i = 0, c = console_cmdline;
 	     i < MAX_CMDLINECONSOLES && c->name[0];
 	     i++, c++) {
