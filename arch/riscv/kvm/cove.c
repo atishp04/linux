@@ -281,14 +281,15 @@ void noinstr kvm_riscv_cove_vcpu_switchto(struct kvm_vcpu *vcpu, struct kvm_cpu_
 	struct kvm *kvm = vcpu->kvm;
 	struct kvm_cove_tvm_context *tvmc;
 	struct kvm_cpu_context *cntx = &vcpu->arch.guest_context;
-	void *nshmem;
+	void *nsh;
+	struct kvm_guest_timer *gt = &kvm->arch.timer;
 
 	if (!kvm->arch.tvmc)
 		return;
 
 	tvmc = kvm->arch.tvmc;
 
-	nshmem = nacl_shmem();
+	nsh = nacl_shmem();
 	/* Invoke finalize to mark TVM is ready run for the first time */
 	if (unlikely(!tvmc->finalized_done)) {
 
@@ -305,6 +306,13 @@ void noinstr kvm_riscv_cove_vcpu_switchto(struct kvm_vcpu *vcpu, struct kvm_cpu_
 		trap->scause = EXC_CUSTOM_KVM_COVE_RUN_FAIL;
 		return;
 	}
+
+	/* Read htimedelta from shmem. Given it's written by TSM only when we
+	 * run first VCPU, we need to update this here rather than in timer
+	 * init.
+	 */
+	if (unlikely(!gt->time_delta))
+		gt->time_delta = nacl_csr_read(nsh, CSR_HTIMEDELTA);
 }
 
 void kvm_riscv_cove_vcpu_destroy(struct kvm_vcpu *vcpu)
