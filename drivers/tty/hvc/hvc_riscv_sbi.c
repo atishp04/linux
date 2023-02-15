@@ -11,6 +11,7 @@
 #include <linux/moduleparam.h>
 #include <linux/types.h>
 
+#include <asm/cove.h>
 #include <asm/sbi.h>
 
 #include "hvc_console.h"
@@ -64,6 +65,9 @@ static int __init hvc_sbi_init(void)
 {
 	int err;
 
+	/* Prefer virtio console as hvc console for guests */
+	if (is_cove_guest())
+		return 0;
 	if (sbi_debug_console_available) {
 		err = PTR_ERR_OR_ZERO(hvc_alloc(0, 0, &hvc_sbi_dbcn_ops, 256));
 		if (err)
