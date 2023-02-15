@@ -11,6 +11,7 @@
 #include <linux/moduleparam.h>
 #include <linux/types.h>
 
+#include <asm/cove.h>
 #include <asm/sbi.h>
 
 #include "hvc_console.h"
@@ -102,6 +103,10 @@ static const struct hv_ops hvc_sbi_dbcn_ops = {
 static int __init hvc_sbi_init(void)
 {
 	int err;
+
+	/* Prefer virtio console as hvc console for guests */
+	if (is_cove_guest())
+		return 0;
 
 	if ((sbi_spec_version >= sbi_mk_version(1, 0)) &&
 	    (sbi_probe_extension(SBI_EXT_DBCN) > 0)) {
