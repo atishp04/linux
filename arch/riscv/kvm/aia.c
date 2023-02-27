@@ -22,6 +22,8 @@
 struct aia_hgei_control {
 	raw_spinlock_t lock;
 	unsigned long free_bitmap;
+	/* Tracks if a hgei is converted to confidential mode */
+	unsigned long nconf_bitmap;
 	struct kvm_vcpu *owners[BITS_PER_LONG];
 };
 static DEFINE_PER_CPU(struct aia_hgei_control, aia_hgei);
@@ -426,23 +428,45 @@ int kvm_riscv_vcpu_aia_rmw_ireg(struct kvm_vcpu *vcpu, unsigned int csr_num,
 int kvm_riscv_aia_alloc_hgei(int cpu, struct kvm_vcpu *owner,
 			     void __iomem **hgei_va, phys_addr_t *hgei_pa)
 {
-	int ret = -ENOENT;
-	unsigned long flags;
+	int ret = -ENOENT, rc;
+	unsigned long flags, tmp_bitmap;
 	const struct imsic_global_config *gc;
+	bool reclaim_needed = false;
 	const struct imsic_local_config *lc;
 	struct aia_hgei_control *hgctrl = per_cpu_ptr(&aia_hgei, cpu);
+	phys_addr_t imsic_hgei_pa;
 
 	if (!kvm_riscv_aia_available() || !hgctrl)
 		return -ENODEV;
 
 	raw_spin_lock_irqsave(&hgctrl->lock, flags);
 
-	if (hgctrl->free_bitmap) {
-		ret = __ffs(hgctrl->free_bitmap);
-		hgctrl->free_bitmap &= ~BIT(ret);
-		hgctrl->owners[ret] = owner;
+	if (!hgctrl->free_bitmap) {
+		raw_spin_unlock_irqrestore(&hgctrl->lock, flags);
+		goto done;
 	}
 
+	if (!is_cove_vcpu(owner)) {
+		/* Find a free one that is not converted */
+		tmp_bitmap = hgctrl->free_bitmap & hgctrl->nconf_bitmap;
+		if (tmp_bitmap > 0)
+			ret = __ffs(tmp_bitmap);
+		else {
+			/* All free ones have been converted in the past. Reclaim one now */
+			ret = __ffs(hgctrl->free_bitmap);
+			reclaim_needed = true;
+		}
+	} else {
+		/* First try to find a free one that is already converted */
+		tmp_bitmap = hgctrl->free_bitmap & !hgctrl->nconf_bitmap;
+		if (tmp_bitmap > 0)
+			ret = __ffs(tmp_bitmap);
+		else
+			ret = __ffs(hgctrl->free_bitmap);
+	}
+
+	hgctrl->free_bitmap &= ~BIT(ret);
+	hgctrl->owners[ret] = owner;
 	raw_spin_unlock_irqrestore(&hgctrl->lock, flags);
 
 	gc = imsic_get_global_config();
@@ -450,10 +474,50 @@ int kvm_riscv_aia_alloc_hgei(int cpu, struct kvm_vcpu *owner,
 	if (lc && ret > 0) {
 		if (hgei_va)
 			*hgei_va = lc->msi_va + (ret * IMSIC_MMIO_PAGE_SZ);
-		if (hgei_pa)
-			*hgei_pa = lc->msi_pa + (ret * IMSIC_MMIO_PAGE_SZ);
+		imsic_hgei_pa = lc->msi_pa + (ret * IMSIC_MMIO_PAGE_SZ);
+
+		if (reclaim_needed) {
+			rc = kvm_riscv_cove_aia_claim_imsic(owner, imsic_hgei_pa);
+			if (rc) {
+				kvm_err("Reclaim of imsic pa %pa failed for vcpu %d pcpu %d ret %d\n",
+					&imsic_hgei_pa, owner->vcpu_idx, smp_processor_id(), ret);
+				kvm_riscv_aia_free_hgei(cpu, ret);
+				return rc;
+			}
+		}
+
+		/*
+		 * Clear the free_bitmap here instead in case relcaim was necessary.
+		 * Do it here instead of above because it we should only set the nconf
+		 * bitmap after the claim is successful.
+		 */
+		raw_spin_lock_irqsave(&hgctrl->lock, flags);
+		if (reclaim_needed)
+			set_bit(ret, &hgctrl->nconf_bitmap);
+		raw_spin_unlock_irqrestore(&hgctrl->lock, flags);
+
+		if (is_cove_vcpu(owner) && test_bit(ret, &hgctrl->nconf_bitmap)) {
+			/*
+			 * Convert the address to confidential mode.
+			 * This may need to send IPIs to issue global fence. Hence,
+			 * enable interrupts temporarily for irq processing
+			 */
+			rc = kvm_riscv_cove_aia_convert_imsic(owner, imsic_hgei_pa);
+
+			if (rc) {
+				kvm_riscv_aia_free_hgei(cpu, ret);
+				ret = rc;
+			} else {
+				raw_spin_lock_irqsave(&hgctrl->lock, flags);
+				clear_bit(ret, &hgctrl->nconf_bitmap);
+				raw_spin_unlock_irqrestore(&hgctrl->lock, flags);
+			}
+		}
 	}
 
+	if (hgei_pa)
+		*hgei_pa = imsic_hgei_pa;
+done:
 	return ret;
 }
 
@@ -531,6 +595,8 @@ static int aia_hgei_init(void)
 			hgctrl->free_bitmap &= ~BIT(0);
 		} else
 			hgctrl->free_bitmap = 0;
+		/* By default all vsfiles are to be used for non-confidential mode */
+		hgctrl->nconf_bitmap = hgctrl->free_bitmap;
 	}
 
 	/* Skip SGEI interrupt setup for zero guest external interrupts */

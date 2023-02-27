@@ -61,7 +61,7 @@ struct kvm_riscv_cove_page {
 	unsigned long gpa;
 };
 
-struct imsic_tee_state {
+struct imsic_cove_state {
 	bool bind_required;
 	bool bound;
 	int vsfile_hgei;
@@ -73,7 +73,7 @@ struct kvm_cove_tvm_vcpu_context {
 	struct kvm_riscv_cove_page vcpu_state;
 
 	/* Per VCPU imsic state */
-	struct imsic_tee_state imsic;
+	struct imsic_cove_state imsic;
 };
 
 struct kvm_cove_tvm_context {
@@ -181,7 +181,7 @@ static inline int kvm_riscv_cove_vm_measure_pages(struct kvm *kvm,
 }
 static inline int kvm_riscv_cove_gstage_map(struct kvm_vcpu *vcpu,
 					    gpa_t gpa, unsigned long hva) {return -1; }
-/* AIA related TEE functions */
+/* TVM interrupt managenet via AIA functions */
 static inline int kvm_riscv_cove_aia_init(struct kvm *kvm) { return -1; }
 static inline int kvm_riscv_cove_vcpu_inject_interrupt(struct kvm_vcpu *vcpu,
 						       unsigned long iid) { return -1; }
