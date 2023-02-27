@@ -11,6 +11,7 @@
 #include <linux/irqchip/riscv-imsic.h>
 #include <linux/kvm_host.h>
 #include <linux/uaccess.h>
+#include <asm/kvm_cove.h>
 
 static void unlock_vcpus(struct kvm *kvm, int vcpu_lock_idx)
 {
@@ -103,6 +104,10 @@ static int aia_config(struct kvm *kvm, unsigned long type,
 			default:
 				return -EINVAL;
 			};
+			/* TVM must have a physical vs file */
+			if (is_cove_vm(kvm) && *nr != KVM_DEV_RISCV_AIA_MODE_HWACCEL)
+				return -EINVAL;
+
 			aia->mode = *nr;
 		} else
 			*nr = aia->mode;
@@ -264,18 +269,24 @@ static int aia_init(struct kvm *kvm)
 	if (kvm->created_vcpus != atomic_read(&kvm->online_vcpus))
 		return -EBUSY;
 
-	/* Number of sources should be less than or equals number of IDs */
-	if (aia->nr_ids < aia->nr_sources)
-		return -EINVAL;
+	if (!is_cove_vm(kvm)) {
+		/* Number of sources should be less than or equals number of IDs */
+		if (aia->nr_ids < aia->nr_sources)
+			return -EINVAL;
+		/* APLIC base is required for non-zero number of sources only for non TVMs*/
+		if (aia->nr_sources && aia->aplic_addr == KVM_RISCV_AIA_UNDEF_ADDR)
+			return -EINVAL;
 
-	/* APLIC base is required for non-zero number of sources */
-	if (aia->nr_sources && aia->aplic_addr == KVM_RISCV_AIA_UNDEF_ADDR)
-		return -EINVAL;
+		/* Initialize APLIC */
+		ret = kvm_riscv_aia_aplic_init(kvm);
+		if (ret)
+			return ret;
 
-	/* Initialze APLIC */
-	ret = kvm_riscv_aia_aplic_init(kvm);
-	if (ret)
-		return ret;
+	} else {
+		ret = kvm_riscv_cove_aia_init(kvm);
+		if (ret)
+			return ret;
+	}
 
 	/* Iterate over each VCPU */
 	kvm_for_each_vcpu(idx, vcpu, kvm) {
@@ -650,8 +661,14 @@ void kvm_riscv_aia_init_vm(struct kvm *kvm)
 	 */
 
 	/* Initialize default values in AIA global context */
-	aia->mode = (kvm_riscv_aia_nr_hgei) ?
-		KVM_DEV_RISCV_AIA_MODE_AUTO : KVM_DEV_RISCV_AIA_MODE_EMUL;
+	if (is_cove_vm(kvm)) {
+		if (!kvm_riscv_aia_nr_hgei)
+			return;
+		aia->mode = KVM_DEV_RISCV_AIA_MODE_HWACCEL;
+	} else {
+		aia->mode = (kvm_riscv_aia_nr_hgei) ?
+			KVM_DEV_RISCV_AIA_MODE_AUTO : KVM_DEV_RISCV_AIA_MODE_EMUL;
+	}
 	aia->nr_ids = kvm_riscv_aia_max_ids - 1;
 	aia->nr_sources = 0;
 	aia->nr_group_bits = 0;
