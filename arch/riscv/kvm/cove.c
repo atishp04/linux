@@ -78,6 +78,42 @@ done:
 	return rc;
 }
 
+int kvm_riscv_cove_tvm_fence(struct kvm_vcpu *vcpu)
+{
+	struct kvm *kvm = vcpu->kvm;
+	struct kvm_cove_tvm_context *tvmc = kvm->arch.tvmc;
+	DECLARE_BITMAP(vcpu_mask, KVM_MAX_VCPUS);
+	unsigned long i;
+	struct kvm_vcpu *temp_vcpu;
+	int ret;
+
+	if (!tvmc)
+		return -EINVAL;
+
+	spin_lock(&tvmc->tvm_fence_lock);
+	ret = sbi_covh_tvm_initiate_fence(tvmc->tvm_guest_id);
+	if (ret) {
+		spin_unlock(&tvmc->tvm_fence_lock);
+		return ret;
+	}
+
+	bitmap_clear(vcpu_mask, 0, KVM_MAX_VCPUS);
+	kvm_for_each_vcpu(i, temp_vcpu, kvm) {
+		if (temp_vcpu != vcpu)
+			bitmap_set(vcpu_mask, i, 1);
+	}
+
+	/*
+	 * The host just needs to make sure that the running vcpus exit the
+	 * guest mode and traps into TSM so that it can issue hfence.
+	 */
+	kvm_make_vcpus_request_mask(kvm, KVM_REQ_OUTSIDE_GUEST_MODE, vcpu_mask);
+	spin_unlock(&tvmc->tvm_fence_lock);
+
+	return 0;
+}
+
+
 static int cove_convert_pages(unsigned long phys_addr, unsigned long npages, bool fence)
 {
 	int rc;
