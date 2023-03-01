@@ -862,6 +862,7 @@ config RISCV_COVE_GUEST
 	default n
 	select SWIOTLB
 	select RISCV_MEM_ENCRYPT
+	select ARCH_HAS_CC_PLATFORM
 	help
 	  Enables support for running TVMs on platforms supporting CoVE.
 
