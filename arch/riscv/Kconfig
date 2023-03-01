@@ -512,6 +512,13 @@ config RISCV_COVE_HOST
 	    That means the platform should be capable of running Truested VM (TVM)
 	    using KVM and Trusted Security Monitor (TSM).
 
+config RISCV_COVE_GUEST
+	bool "Guest Support for Confidential VM Extension(CoVE)"
+	default n
+	select ARCH_HAS_CC_PLATFORM
+	help
+	  Enables support for running TVMs on platforms supporting CoVE.
+
 endmenu # "Confidential VM Extension(CoVE) Support"
 
 endmenu # "Platform type"
