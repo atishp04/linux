@@ -59,6 +59,22 @@ int sbi_covh_create_tvm_vcpu(unsigned long tvmid, unsigned long tvm_vcpuid,
 
 int sbi_covh_run_tvm_vcpu(unsigned long tvmid, unsigned long tvm_vcpuid);
 
+int sbi_covh_tvm_invalidate_pages(unsigned long tvmid,
+			     unsigned long tvm_base_page_addr,
+			     unsigned long len);
+int sbi_covh_tvm_validate_pages(unsigned long tvmid,
+			       unsigned long tvm_base_page_addr,
+			       unsigned long len);
+int sbi_covh_tvm_promote_page(unsigned long tvmid,
+			      unsigned long tvm_base_page_addr,
+			      enum sbi_cove_page_type ptype);
+int sbi_covh_tvm_demote_page(unsigned long tvmid,
+			     unsigned long tvm_base_page_addr,
+			     enum sbi_cove_page_type ptype);
+int sbi_covh_tvm_remove_pages(unsigned long tvmid,
+			      unsigned long tvm_base_page_addr,
+			      unsigned long len);
+
 /* Functions related to CoVE Interrupt Management(COVI) Extension */
 int sbi_covi_tvm_aia_init(unsigned long tvm_gid, struct sbi_cove_tvm_aia_params *tvm_aia_params);
 int sbi_covi_set_vcpu_imsic_addr(unsigned long tvm_gid, unsigned long vcpu_id,
