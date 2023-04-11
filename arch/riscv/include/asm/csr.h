@@ -107,6 +107,8 @@
 #define EXC_VIRTUAL_INST_FAULT		22
 #define EXC_STORE_GUEST_PAGE_FAULT	23
 
+#define EXC_CUSTOM_KVM_COVE_RUN_FAIL	48
+
 /* PMP configuration */
 #define PMP_R			0x01
 #define PMP_W			0x02
