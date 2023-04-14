@@ -14,6 +14,7 @@
 #include <linux/smp.h>
 #include <linux/kvm_host.h>
 #include <asm/csr.h>
+#include <asm/kvm_cove.h>
 
 static unsigned long vmid_version = 1;
 static unsigned long vmid_next;
@@ -54,12 +55,13 @@ int kvm_riscv_gstage_vmid_init(struct kvm *kvm)
 	return 0;
 }
 
-bool kvm_riscv_gstage_vmid_ver_changed(struct kvm_vmid *vmid)
+bool kvm_riscv_gstage_vmid_ver_changed(struct kvm *kvm)
 {
-	if (!vmid_bits)
+	/* VMID version can't be changed by the host for TVMs */
+	if (!vmid_bits || is_cove_vm(kvm))
 		return false;
 
-	return unlikely(READ_ONCE(vmid->vmid_version) !=
+	return unlikely(READ_ONCE(kvm->arch.vmid.vmid_version) !=
 			READ_ONCE(vmid_version));
 }
 
@@ -72,9 +74,14 @@ void kvm_riscv_gstage_vmid_update(struct kvm_vcpu *vcpu)
 {
 	unsigned long i;
 	struct kvm_vcpu *v;
+	struct kvm *kvm = vcpu->kvm;
 	struct kvm_vmid *vmid = &vcpu->kvm->arch.vmid;
 
-	if (!kvm_riscv_gstage_vmid_ver_changed(vmid))
+	/* No VMID management for TVMs by the host */
+	if (is_cove_vcpu(vcpu))
+		return;
+
+	if (!kvm_riscv_gstage_vmid_ver_changed(kvm))
 		return;
 
 	spin_lock(&vmid_lock);
@@ -83,7 +90,7 @@ void kvm_riscv_gstage_vmid_update(struct kvm_vcpu *vcpu)
 	 * We need to re-check the vmid_version here to ensure that if
 	 * another vcpu already allocated a valid vmid for this vm.
 	 */
-	if (!kvm_riscv_gstage_vmid_ver_changed(vmid)) {
+	if (!kvm_riscv_gstage_vmid_ver_changed(kvm)) {
 		spin_unlock(&vmid_lock);
 		return;
 	}
