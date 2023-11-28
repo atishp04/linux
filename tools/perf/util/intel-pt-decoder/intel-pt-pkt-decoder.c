@@ -189,7 +189,7 @@ static int intel_pt_get_mnt(const unsigned char *buf, size_t len,
 	if (len < 11)
 		return INTEL_PT_NEED_MORE_BYTES;
 	packet->type = INTEL_PT_MNT;
-	packet->payload = get_unaligned_le64(buf + 3);
+	memcpy_le64(&packet->payload, buf + 3, 8);
 	return 11;
 }
 
@@ -301,7 +301,7 @@ static int intel_pt_get_bip_8(const unsigned char *buf, size_t len,
 		return INTEL_PT_NEED_MORE_BYTES;
 	packet->type = INTEL_PT_BIP;
 	packet->count = buf[0] >> 3;
-	packet->payload = get_unaligned_le64(buf + 1);
+	memcpy_le64(&packet->payload, buf + 1, 8);
 	return 9;
 }
 
@@ -340,7 +340,7 @@ static int intel_pt_get_evd(const unsigned char *buf, size_t len,
 	packet->type = INTEL_PT_EVD;
 	packet->count = buf[2] & 0x3f;
 	packet->payload = buf[3];
-	packet->payload = get_unaligned_le64(buf + 3);
+	memcpy_le64(&packet->payload, buf + 3, 8);
 	return 11;
 }
 
