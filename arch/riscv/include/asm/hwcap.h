@@ -97,6 +97,7 @@
 #define RISCV_ISA_EXT_SMCSRIND		87
 #define RISCV_ISA_EXT_SSCCFG            88
 #define RISCV_ISA_EXT_SMCDELEG          89
+#define RISCV_ISA_EXT_SMCNTRPMF         90
 
 #define RISCV_ISA_EXT_XLINUXENVCFG	127
 
