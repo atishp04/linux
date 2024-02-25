@@ -15,12 +15,12 @@
 
 static vm_vaddr_t exception_handlers;
 
-bool __vcpu_has_ext(struct kvm_vcpu *vcpu, int ext)
+bool __vcpu_has_ext(struct kvm_vcpu *vcpu, uint64_t ext)
 {
 	unsigned long value = 0;
 	int ret;
 
-	ret = __vcpu_get_reg(vcpu, RISCV_ISA_EXT_REG(ext), &value);
+	ret = __vcpu_get_reg(vcpu, ext, &value);
 
 	return !ret && !!value;
 }

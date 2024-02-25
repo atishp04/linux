@@ -48,7 +48,7 @@ static inline uint64_t __kvm_reg_id(uint64_t type, uint64_t subtype,
 						     KVM_REG_RISCV_SBI_SINGLE,		\
 						     idx, KVM_REG_SIZE_ULONG)
 
-bool __vcpu_has_ext(struct kvm_vcpu *vcpu, int ext);
+bool __vcpu_has_ext(struct kvm_vcpu *vcpu, uint64_t ext);
 
 struct ex_regs {
 	unsigned long ra;
