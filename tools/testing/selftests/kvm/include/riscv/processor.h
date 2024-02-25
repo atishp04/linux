@@ -92,6 +92,7 @@ struct ex_regs {
 #define EC_MASK  (NR_EXCEPTIONS - 1)
 
 void vm_install_interrupt_handler(struct kvm_vm *vm, exception_handler_fn handler);
+void vm_install_exception_handler(struct kvm_vm *vm, int vector, exception_handler_fn handler);
 
 /* L3 index Bit[47:39] */
 #define PGTBL_L3_INDEX_MASK			0x0000FF8000000000ULL
