@@ -195,6 +195,7 @@ TEST_GEN_PROGS_riscv += kvm_create_max_vcpus
 TEST_GEN_PROGS_riscv += kvm_page_table_test
 TEST_GEN_PROGS_riscv += set_memory_region_test
 TEST_GEN_PROGS_riscv += steal_time
+TEST_GEN_PROGS_riscv += riscv/sbi_pmu
 
 SPLIT_TESTS += arch_timer
 SPLIT_TESTS += get-reg-list
