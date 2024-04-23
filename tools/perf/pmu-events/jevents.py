@@ -6,6 +6,7 @@ import csv
 from functools import lru_cache
 import json
 import metric
+import re
 import os
 import sys
 from typing import (Callable, Dict, Optional, Sequence, Set, Tuple)
@@ -394,6 +395,9 @@ class JsonEvent:
     if arch_std:
       if arch_std.lower() in _arch_std_events:
         event = _arch_std_events[arch_std.lower()].event
+        #TODO: No need to replace it. We just need to ignore if not specified
+        if eventcode:
+            event = re.sub(r'event=\d+', f'event={llx(eventcode)}', event)
         # Copy from the architecture standard event to self for undefined fields.
         for attr, value in _arch_std_events[arch_std.lower()].__dict__.items():
           if hasattr(self, attr) and not getattr(self, attr):
