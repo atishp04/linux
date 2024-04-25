@@ -1,0 +1,11 @@
+Here are two fixes for issues found during review/testing after the
+series[1] has been queued for 6.10.
+
+
+@Anup: Can you please squash them into the original source commit 
+22f5dac41004 that introduced this ?
+
+[1] https://lore.kernel.org/all/20240420151741.962500-1-atishp@rivosinc.com/
+
+option-subject Fixes for kvm-riscv
+option-prefix kvm-riscv/for-next
