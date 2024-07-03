@@ -182,6 +182,16 @@ static int __init riscv_acpi_plic_parse_madt(union acpi_subtable_headers *header
 					    plic->id, ACPI_RISCV_IRQCHIP_PLIC);
 }
 
+static int __init riscv_acpi_smmc_parse_madt(union acpi_subtable_headers *header,
+					      const unsigned long end)
+{
+	struct acpi_madt_smmc *smmc = (struct acpi_madt_smmc *)header;
+
+	/* There can be only 1 SMMC in the platform. So assign the index 0 */
+	return riscv_acpi_register_ext_intc(smmc->gsi_base, smmc->num_sources, 0,
+					    0, ACPI_RISCV_IRQCHIP_SMMC);
+}
+
 void __init riscv_acpi_init_gsi_mapping(void)
 {
 	/* There can be either PLIC or APLIC */
@@ -192,6 +202,9 @@ void __init riscv_acpi_init_gsi_mapping(void)
 
 	if (acpi_table_parse_madt(ACPI_MADT_TYPE_APLIC, riscv_acpi_aplic_parse_madt, 0) > 0)
 		acpi_get_devices("RSCV0002", riscv_acpi_create_gsi_map, NULL, NULL);
+
+	if (acpi_table_parse_madt(ACPI_MADT_TYPE_SMMC, riscv_acpi_smmc_parse_madt, 0) > 0)
+		acpi_get_devices("RSCV0005", riscv_acpi_create_gsi_map, NULL, NULL);
 }
 
 static acpi_status riscv_acpi_irq_get_parent(struct acpi_resource *ares, void *context)
