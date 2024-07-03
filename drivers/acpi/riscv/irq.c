@@ -173,6 +173,47 @@ static int __init riscv_acpi_plic_parse_madt(union acpi_subtable_headers *header
 					    plic->id, ACPI_RISCV_IRQCHIP_PLIC);
 }
 
+static acpi_status __init riscv_acpi_create_gsi_map_gtmb(acpi_handle handle, u32 level,
+							 void *context, void **return_value)
+{
+	acpi_status status;
+	u64 gbase;
+	u64 num_gsis;
+
+	if (!acpi_has_method(handle, "_GMA")) {
+		acpi_handle_err(handle, "_GMA method not found\n");
+		return AE_ERROR;
+	}
+
+	if (!acpi_has_method(handle, "_GSB")) {
+		acpi_handle_err(handle, "_GSB method not found\n");
+		return AE_ERROR;
+	}
+
+	status = acpi_evaluate_integer(handle, "_GSB", NULL, &gbase);
+	if (ACPI_FAILURE(status)) {
+		acpi_handle_err(handle, "failed to evaluate _GSB method\n");
+		return status;
+	}
+
+	status = acpi_evaluate_integer(handle, "_NGI", NULL, &num_gsis);
+	if (ACPI_FAILURE(status) || num_gsis <= 0) {
+		acpi_handle_err(handle, "Number of GSIs is not valid\n");
+		return status;
+	}
+
+	riscv_acpi_register_ext_intc(gbase, num_gsis, 0, 0, ACPI_RISCV_IRQCHIP_GTMB);
+
+	status = riscv_acpi_update_gsi_handle((u32)gbase, handle);
+	if (ACPI_FAILURE(status)) {
+		acpi_handle_err(handle, "failed to find the GSI mapping entry\n");
+		return status;
+	}
+
+	return AE_OK;
+}
+
+
 void __init riscv_acpi_init_gsi_mapping(void)
 {
 	/* There can be either PLIC or APLIC */
@@ -183,6 +224,9 @@ void __init riscv_acpi_init_gsi_mapping(void)
 
 	if (acpi_table_parse_madt(ACPI_MADT_TYPE_APLIC, riscv_acpi_aplic_parse_madt, 0) > 0)
 		acpi_get_devices("RSCV0002", riscv_acpi_create_gsi_map, NULL, NULL);
+
+	/* Unlike PLIC/APLIC, GTMB doesn't have MADT */
+	acpi_get_devices("ACPI0019", riscv_acpi_create_gsi_map_gtmb, NULL, NULL);
 }
 
 static acpi_handle riscv_acpi_get_gsi_handle(u32 gsi)
