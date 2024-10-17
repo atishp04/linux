@@ -218,10 +218,10 @@ static int kvm_sbi_ext_covg_handler(struct kvm_vcpu *vcpu, struct kvm_run *run,
 	}
 }
 
-unsigned long kvm_sbi_ext_covg_probe(struct kvm_vcpu *vcpu)
+static unsigned long kvm_sbi_ext_covg_probe(struct kvm_vcpu *vcpu)
 {
 	/* KVM COVG SBI handler is only meant for handling calls from TSM */
-	return 0;
+	return 1;
 }
 
 const struct kvm_vcpu_sbi_extension vcpu_sbi_ext_covg = {

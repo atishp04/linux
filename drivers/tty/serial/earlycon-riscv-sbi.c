@@ -43,7 +43,6 @@ static void sbi_dbcn_console_write_cove(struct console *con, const char *s,
 			rem > DBCN_BOUNCE_BUF_SIZE ? DBCN_BOUNCE_BUF_SIZE : rem;
 
 		memcpy(dbcn_buf, &s[off], size);
-
 		sbi_ecall(SBI_EXT_DBCN, SBI_EXT_DBCN_CONSOLE_WRITE,
 #ifdef CONFIG_32BIT
 			  size, pa, (u64)pa >> 32,
@@ -77,7 +76,8 @@ static int __init early_sbi_setup(struct earlycon_device *device,
 {
 	int ret;
 
-	if (sbi_debug_console_available) {
+	if ((sbi_spec_version >= sbi_mk_version(1, 0)) &&
+	    (sbi_probe_extension(SBI_EXT_DBCN) > 0)) {
 		#ifdef CONFIG_RISCV_COVE_GUEST
 		if (is_cove_guest()) {
 			ret = sbi_covg_share_memory(__pa(dbcn_buf),
