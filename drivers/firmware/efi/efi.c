@@ -33,6 +33,7 @@
 #include <linux/memblock.h>
 #include <linux/security.h>
 #include <linux/notifier.h>
+#include <linux/unaccepted_memory.h>
 
 #include <asm/early_ioremap.h>
 
@@ -832,6 +833,7 @@ int __init efi_config_parse_tables(const efi_config_table_t *config_tables,
 		if (unaccepted) {
 
 			if (unaccepted->version == 1) {
+				unaccepted_table_phys = efi.unaccepted;
 				reserve_unaccepted(unaccepted);
 			} else {
 				efi.unaccepted = EFI_INVALID_TABLE_ADDR;

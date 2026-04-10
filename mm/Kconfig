@@ -1471,6 +1471,21 @@ config LAZY_MMU_MODE_KUNIT_TEST
 
 	  If unsure, say N.
 
+config UNACCEPTED_MEMORY
+	bool
+	depends on EFI_STUB
+	help
+	   Some Virtual Machine platforms, such as Intel TDX and AMD SEV-SNP,
+	   require memory to be "accepted" by the guest before it can be used.
+	   This mechanism helps prevent malicious hosts from making changes
+	   to guest memory.
+
+	   The unaccepted memory bitmap can be discovered via the EFI
+	   configuration table or passed by firmware via setup_data.
+
+	   This option adds support for unaccepted memory and makes such memory
+	   usable by the kernel.
+
 source "mm/damon/Kconfig"
 
 endmenu

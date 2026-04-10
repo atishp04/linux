@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
-#include <linux/efi.h>
 #include <linux/memblock.h>
 #include <linux/spinlock.h>
 #include <linux/crash_dump.h>
 #include <linux/nmi.h>
+#include <linux/unaccepted_memory.h>
 #include <asm/unaccepted_memory.h>
+
+/* Physical address of the unaccepted memory table, or PHYS_ADDR_MAX if none */
+phys_addr_t unaccepted_table_phys __ro_after_init = PHYS_ADDR_MAX;
 
 /* Protects unaccepted memory bitmap and accepting_list */
 static DEFINE_SPINLOCK(unaccepted_memory_lock);
@@ -39,7 +42,7 @@ void accept_memory(phys_addr_t start, unsigned long size)
 	phys_addr_t end;
 	u64 unit_size;
 
-	unaccepted = efi_get_unaccepted_table();
+	unaccepted = get_unaccepted_table();
 	if (!unaccepted)
 		return;
 
@@ -168,7 +171,7 @@ bool range_contains_unaccepted_memory(phys_addr_t start, unsigned long size)
 	phys_addr_t end;
 	u64 unit_size;
 
-	unaccepted = efi_get_unaccepted_table();
+	unaccepted = get_unaccepted_table();
 	if (!unaccepted)
 		return false;
 
