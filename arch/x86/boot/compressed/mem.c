@@ -143,7 +143,49 @@ static bool init_unaccepted_memory_efi(void)
 static bool init_unaccepted_memory_efi(void) { return false; }
 #endif
 
+static bool init_unaccepted_memory_setup_data(void)
+{
+	struct unaccepted_memory *table;
+	struct setup_data *sd;
+	u64 pa_sd;
+
+	/*
+	 * The decompressor runs identity-mapped, so setup_data physical
+	 * addresses are directly dereferenceable.
+	 */
+	pa_sd = boot_params_ptr->hdr.setup_data;
+	while (pa_sd) {
+		sd = (struct setup_data *)pa_sd;
+		if (sd->type == SETUP_UNACCEPTED_MEM) {
+			if (sd->len < sizeof(*table)) {
+				warn("SETUP_UNACCEPTED_MEM payload too small");
+				return false;
+			}
+
+			table = (struct unaccepted_memory *)sd->data;
+			if (table->version != 1) {
+				warn("Unknown version of unaccepted memory table");
+				return false;
+			}
+
+			if (sizeof(*table) + table->size > sd->len) {
+				warn("SETUP_UNACCEPTED_MEM bitmap exceeds payload");
+				return false;
+			}
+
+			unaccepted_table = table;
+			return true;
+		}
+		pa_sd = sd->next;
+	}
+
+	return false;
+}
+
 bool init_unaccepted_memory(void)
 {
-	return init_unaccepted_memory_efi();
+	if (init_unaccepted_memory_efi())
+		return true;
+
+	return init_unaccepted_memory_setup_data();
 }

@@ -57,6 +57,7 @@
 #include <asm/thermal.h>
 #include <asm/unwind.h>
 #include <asm/vsyscall.h>
+#include <asm/unaccepted_memory.h>
 
 /*
  * max_low_pfn_mapped: highest directly mapped pfn < 4 GB
@@ -476,6 +477,47 @@ static void __init add_kho(u64 phys_addr, u32 data_len)
 	early_memunmap(kho, size);
 }
 
+#ifdef CONFIG_UNACCEPTED_MEMORY
+static void __init add_unaccepted_setup_data(u64 pa_data, u32 data_len)
+{
+	phys_addr_t table_pa = pa_data + sizeof(struct setup_data);
+	struct unaccepted_memory *unaccepted;
+	phys_addr_t start, end;
+
+	if (unaccepted_table_phys != PHYS_ADDR_MAX)
+		return;
+
+	unaccepted = early_memremap(table_pa, sizeof(*unaccepted));
+	if (!unaccepted) {
+		pr_warn("Failed to remap unaccepted memory table\n");
+		return;
+	}
+
+	if (sizeof(*unaccepted) + unaccepted->size >
+	    data_len - sizeof(struct setup_data)) {
+		pr_warn("SETUP_UNACCEPTED_MEM bitmap exceeds payload\n");
+		early_memunmap(unaccepted, sizeof(*unaccepted));
+		return;
+	}
+
+	unaccepted_table_phys = table_pa;
+
+	/* Ensure the table is mapped and reserved, same as reserve_unaccepted() */
+	start = PAGE_ALIGN_DOWN(table_pa);
+	end = PAGE_ALIGN(table_pa + sizeof(*unaccepted) + unaccepted->size);
+	memblock_add(start, end - start);
+	memblock_reserve(start, end - start);
+
+	pr_info("Unaccepted memory table via setup_data (base=%#llx size=%llu)\n",
+		(unsigned long long)unaccepted->phys_base,
+		(unsigned long long)unaccepted->size);
+
+	early_memunmap(unaccepted, sizeof(*unaccepted));
+}
+#else
+static inline void add_unaccepted_setup_data(u64 pa_data, u32 data_len) {}
+#endif
+
 static void __init parse_setup_data(void)
 {
 	struct setup_data *data;
@@ -506,6 +548,9 @@ static void __init parse_setup_data(void)
 			break;
 		case SETUP_KEXEC_KHO:
 			add_kho(pa_data, data_len);
+			break;
+		case SETUP_UNACCEPTED_MEM:
+			add_unaccepted_setup_data(pa_data, data_len);
 			break;
 		case SETUP_RNG_SEED:
 			data = early_memremap(pa_data, data_len);
