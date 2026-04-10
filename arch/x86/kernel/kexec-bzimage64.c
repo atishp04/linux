@@ -21,6 +21,7 @@
 #include <linux/efi.h>
 #include <linux/random.h>
 #include <linux/sysfb.h>
+#include <linux/unaccepted_memory.h>
 
 #include <asm/bootparam.h>
 #include <asm/setup.h>
@@ -138,6 +139,49 @@ setup_rng_seed(struct boot_params *params, unsigned long params_load_addr,
 	sd->next = params->hdr.setup_data;
 	params->hdr.setup_data = setup_data_phys;
 }
+
+#ifdef CONFIG_UNACCEPTED_MEMORY
+static unsigned int unaccepted_memory_kexec_size(void)
+{
+	struct unaccepted_memory *unaccepted;
+
+	unaccepted = get_unaccepted_table();
+	if (!unaccepted)
+		return 0;
+
+	return sizeof(struct setup_data) + sizeof(*unaccepted) +
+	       unaccepted->size;
+}
+
+static void
+setup_unaccepted_memory(struct boot_params *params,
+			unsigned long params_load_addr,
+			unsigned int setup_data_offset)
+{
+	struct unaccepted_memory *unaccepted;
+	struct setup_data *sd;
+	unsigned long setup_data_phys;
+
+	unaccepted = get_unaccepted_table();
+	if (!unaccepted)
+		return;
+
+	sd = (void *)params + setup_data_offset;
+	sd->type = SETUP_UNACCEPTED_MEM;
+	sd->len = sizeof(*unaccepted) + unaccepted->size;
+	memcpy(sd->data, unaccepted,
+	       sizeof(*unaccepted) + unaccepted->size);
+
+	setup_data_phys = params_load_addr + setup_data_offset;
+	sd->next = params->hdr.setup_data;
+	params->hdr.setup_data = setup_data_phys;
+}
+#else
+static unsigned int unaccepted_memory_kexec_size(void) { return 0; }
+static void setup_unaccepted_memory(struct boot_params *params,
+				    unsigned long params_load_addr,
+				    unsigned int setup_data_offset) {}
+#endif
 
 #ifdef CONFIG_EFI
 static int setup_efi_info_memmap(struct boot_params *params,
@@ -397,6 +441,10 @@ setup_boot_parameters(struct kimage *image, struct boot_params *params,
 
 	/* Setup RNG seed */
 	setup_rng_seed(params, params_load_addr, setup_data_offset);
+	setup_data_offset += sizeof(struct setup_data) + RNG_SEED_LENGTH;
+
+	/* Forward unaccepted memory bitmap to next kernel */
+	setup_unaccepted_memory(params, params_load_addr, setup_data_offset);
 
 	/* Setup EDD info */
 	memcpy(params->eddbuf, boot_params.eddbuf,
@@ -586,6 +634,8 @@ static void *bzImage64_load(struct kimage *image, char *kernel,
 	if (IS_ENABLED(CONFIG_KEXEC_HANDOVER))
 		kbuf.bufsz += sizeof(struct setup_data) +
 			      sizeof(struct kho_data);
+
+	kbuf.bufsz += unaccepted_memory_kexec_size();
 
 	params = kvzalloc(kbuf.bufsz, GFP_KERNEL);
 	if (!params)
