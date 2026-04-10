@@ -99,6 +99,12 @@ CFLAGS_zboot-decompress-zstd.o	+= -I$(srctree)/lib/zstd
 zboot-obj-$(CONFIG_RISCV)	+= lib-clz_ctz.o lib-ashldi3.o
 lib-$(CONFIG_EFI_ZBOOT)		+= zboot.o $(zboot-obj-y)
 
+$(obj)/bitmap.o: $(srctree)/arch/x86/boot/bitmap.c FORCE
+	$(call if_changed_rule,cc_o_c)
+
+$(obj)/find.o: $(srctree)/arch/x86/boot/find.c FORCE
+	$(call if_changed_rule,cc_o_c)
+
 lib-$(CONFIG_UNACCEPTED_MEMORY) += unaccepted_memory.o bitmap.o find.o
 
 targets				:= $(lib-y)

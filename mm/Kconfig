@@ -1473,7 +1473,7 @@ config LAZY_MMU_MODE_KUNIT_TEST
 
 config UNACCEPTED_MEMORY
 	bool
-	depends on EFI_STUB
+	depends on X86_64
 	help
 	   Some Virtual Machine platforms, such as Intel TDX and AMD SEV-SNP,
 	   require memory to be "accepted" by the guest before it can be used.

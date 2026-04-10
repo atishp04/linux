@@ -105,6 +105,9 @@ endif
 vmlinux-objs-$(CONFIG_ACPI) += $(obj)/acpi.o
 vmlinux-objs-$(CONFIG_INTEL_TDX_GUEST) += $(obj)/tdx.o $(obj)/tdcall.o $(obj)/tdx-shared.o
 vmlinux-objs-$(CONFIG_UNACCEPTED_MEMORY) += $(obj)/mem.o
+ifndef CONFIG_EFI_STUB
+vmlinux-objs-$(CONFIG_UNACCEPTED_MEMORY) += $(obj)/bitmap.o $(obj)/find.o
+endif
 
 vmlinux-objs-$(CONFIG_EFI) += $(obj)/efi.o
 vmlinux-libs-$(CONFIG_EFI_STUB) += $(objtree)/drivers/firmware/efi/libstub/lib.a
@@ -115,6 +118,12 @@ ifdef CONFIG_EFI_SBAT
 $(obj)/sbat.o: $(CONFIG_EFI_SBAT_FILE)
 AFLAGS_sbat.o += -I $(srctree)
 endif
+
+$(obj)/bitmap.o: $(srctree)/arch/x86/boot/bitmap.c FORCE
+	$(call if_changed_rule,cc_o_c)
+
+$(obj)/find.o: $(srctree)/arch/x86/boot/find.c FORCE
+	$(call if_changed_rule,cc_o_c)
 
 $(obj)/vmlinux: $(vmlinux-objs-y) $(vmlinux-libs-y) FORCE
 	$(call if_changed,ld)

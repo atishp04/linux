@@ -6,6 +6,9 @@
 #include "sev.h"
 #include <asm/shared/tdx.h>
 
+/* Unaccepted memory bitmap — set by EFI stub or setup_data discovery */
+struct unaccepted_memory *unaccepted_table;
+
 /*
  * accept_memory() and process_unaccepted_memory() called from EFI stub which
  * runs before decompressor and its early_tdx_detect().
@@ -45,7 +48,59 @@ void arch_accept_memory(phys_addr_t start, phys_addr_t end)
 	}
 }
 
-bool init_unaccepted_memory(void)
+/*
+ * accept_memory() -- Accept memory during early boot (decompressor).
+ *
+ * Single-threaded context, no locking needed. Walks the unaccepted bitmap
+ * and calls arch_accept_memory() for each set range.
+ */
+void accept_memory(phys_addr_t start, unsigned long size)
+{
+	unsigned long range_start, range_end;
+	phys_addr_t end = start + size;
+	unsigned long bitmap_size;
+	u64 unit_size;
+
+	if (!unaccepted_table)
+		return;
+
+	unit_size = unaccepted_table->unit_size;
+
+	/*
+	 * Only care for the part of the range that is represented
+	 * in the bitmap.
+	 */
+	if (start < unaccepted_table->phys_base)
+		start = unaccepted_table->phys_base;
+	if (end < unaccepted_table->phys_base)
+		return;
+
+	/* Translate to offsets from the beginning of the bitmap */
+	start -= unaccepted_table->phys_base;
+	end -= unaccepted_table->phys_base;
+
+	/* Make sure not to overrun the bitmap */
+	if (end > unaccepted_table->size * unit_size * BITS_PER_BYTE)
+		end = unaccepted_table->size * unit_size * BITS_PER_BYTE;
+
+	range_start = start / unit_size;
+	bitmap_size = DIV_ROUND_UP(end, unit_size);
+
+	for_each_set_bitrange_from(range_start, range_end,
+				   unaccepted_table->bitmap, bitmap_size) {
+		unsigned long phys_start, phys_end;
+
+		phys_start = range_start * unit_size + unaccepted_table->phys_base;
+		phys_end = range_end * unit_size + unaccepted_table->phys_base;
+
+		arch_accept_memory(phys_start, phys_end);
+		bitmap_clear(unaccepted_table->bitmap,
+			     range_start, range_end - range_start);
+	}
+}
+
+#ifdef CONFIG_EFI_STUB
+static bool init_unaccepted_memory_efi(void)
 {
 	guid_t guid = LINUX_EFI_UNACCEPTED_MEM_TABLE_GUID;
 	struct unaccepted_memory *table;
@@ -83,4 +138,12 @@ bool init_unaccepted_memory(void)
 	unaccepted_table = table;
 
 	return true;
+}
+#else
+static bool init_unaccepted_memory_efi(void) { return false; }
+#endif
+
+bool init_unaccepted_memory(void)
+{
+	return init_unaccepted_memory_efi();
 }
