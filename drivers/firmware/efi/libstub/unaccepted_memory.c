@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 #include <linux/efi.h>
+#include <linux/unaccepted_memory.h>
 #include <asm/efi.h>
 #include "efistub.h"
 
-struct efi_unaccepted_memory *unaccepted_table;
+struct unaccepted_memory *unaccepted_table;
 
 efi_status_t allocate_unaccepted_bitmap(__u32 nr_desc,
 					struct efi_boot_memmap *map)

@@ -48,7 +48,7 @@ void arch_accept_memory(phys_addr_t start, phys_addr_t end)
 bool init_unaccepted_memory(void)
 {
 	guid_t guid = LINUX_EFI_UNACCEPTED_MEM_TABLE_GUID;
-	struct efi_unaccepted_memory *table;
+	struct unaccepted_memory *table;
 	unsigned long cfg_table_pa;
 	unsigned int cfg_table_len;
 	enum efi_type et;

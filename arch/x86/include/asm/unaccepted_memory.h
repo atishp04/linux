@@ -18,7 +18,7 @@ static inline void arch_accept_memory(phys_addr_t start, phys_addr_t end)
 	}
 }
 
-static inline struct efi_unaccepted_memory *efi_get_unaccepted_table(void)
+static inline struct unaccepted_memory *efi_get_unaccepted_table(void)
 {
 	return get_unaccepted_table();
 }

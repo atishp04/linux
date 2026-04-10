@@ -253,7 +253,7 @@ static inline bool init_unaccepted_memory(void) { return false; }
 #endif
 
 /* Defined in EFI stub */
-extern struct efi_unaccepted_memory *unaccepted_table;
+extern struct unaccepted_memory *unaccepted_table;
 void accept_memory(phys_addr_t start, unsigned long size);
 
 #endif /* BOOT_COMPRESSED_MISC_H */

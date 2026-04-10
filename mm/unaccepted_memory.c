@@ -35,7 +35,7 @@ static LIST_HEAD(accepting_list);
  */
 void accept_memory(phys_addr_t start, unsigned long size)
 {
-	struct efi_unaccepted_memory *unaccepted;
+	struct unaccepted_memory *unaccepted;
 	unsigned long range_start, range_end;
 	struct accept_range range, *entry;
 	unsigned long flags;
@@ -165,7 +165,8 @@ retry:
 
 bool range_contains_unaccepted_memory(phys_addr_t start, unsigned long size)
 {
-	struct efi_unaccepted_memory *unaccepted;
+	struct unaccepted_memory *unaccepted;
+	phys_addr_t end = start + size;
 	unsigned long flags;
 	bool ret = false;
 	phys_addr_t end;

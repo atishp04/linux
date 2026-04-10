@@ -691,7 +691,7 @@ static __init int match_config_table(const efi_guid_t *guid,
  * table.
  */
 
-static __init void reserve_unaccepted(struct efi_unaccepted_memory *unaccepted)
+static __init void reserve_unaccepted(struct unaccepted_memory *unaccepted)
 {
 	phys_addr_t start, end;
 
@@ -827,7 +827,7 @@ int __init efi_config_parse_tables(const efi_config_table_t *config_tables,
 
 	if (IS_ENABLED(CONFIG_UNACCEPTED_MEMORY) &&
 	    efi.unaccepted != EFI_INVALID_TABLE_ADDR) {
-		struct efi_unaccepted_memory *unaccepted;
+		struct unaccepted_memory *unaccepted;
 
 		unaccepted = early_memremap(efi.unaccepted, sizeof(*unaccepted));
 		if (unaccepted) {

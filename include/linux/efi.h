@@ -543,14 +543,6 @@ struct efi_boot_memmap {
 	efi_memory_desc_t	map[];
 };
 
-struct efi_unaccepted_memory {
-	u32 version;
-	u32 unit_size;
-	u64 phys_base;
-	u64 size;
-	unsigned long bitmap[];
-};
-
 /*
  * Architecture independent structure for describing a memory map for the
  * benefit of efi_memmap_init_early(), and for passing context between

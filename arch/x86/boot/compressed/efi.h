@@ -97,7 +97,7 @@ typedef struct {
 	u32 tables;
 } efi_system_table_32_t;
 
-struct efi_unaccepted_memory {
+struct unaccepted_memory {
 	u32 version;
 	u32 unit_size;
 	u64 phys_base;
